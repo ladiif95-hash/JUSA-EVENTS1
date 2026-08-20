@@ -1,12 +1,13 @@
-import { app } from '../backend/src/app';
+import type { Request, Response } from 'express';
+import app from '../backend/src/app';
 import { connectDatabase } from '../backend/src/config/database';
 
-export default async function handler(request: Parameters<typeof app>[0], response: Parameters<typeof app>[1]) {
+export default async function handler(request: Request, response: Response) {
   try {
     await connectDatabase();
-    app(request, response);
+    return app(request, response);
   } catch (error) {
     console.error('Database connection failed', error);
-    response.status(503).json({ message: 'The service is temporarily unavailable.' });
+    return response.status(503).json({ message: 'The service is temporarily unavailable.' });
   }
 }
