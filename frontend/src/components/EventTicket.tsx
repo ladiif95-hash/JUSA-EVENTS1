@@ -14,7 +14,8 @@ export default function EventTicket({ ticket, onClose }: { ticket: EventTicketDa
     <article className="event-ticket">
       <header className="event-ticket-head">
         <div className="event-ticket-brand">
-          <b>JUSA</b><span>Events</span>
+          <img src="/images/jusa-logo.png" alt="JUSA logo" />
+          <span><b>JUSA</b> Events</span>
           <em className="going-pill"><i /> Going</em>
         </div>
         {onClose && <button className="event-ticket-close" type="button" onClick={onClose} aria-label="Close"><X /></button>}

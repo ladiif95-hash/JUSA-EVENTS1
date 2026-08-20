@@ -45,6 +45,7 @@ footer p, footer .footer-grid a, footer .footer-bottom { color: #e1f0e9; }
 footer .footer-bottom { border-top-color: rgb(255 255 255 / .28); }
 
 .admin-campus { display: flex; gap: 10px; align-items: center; margin: 0 8px 18px; padding: 10px; border-radius: 12px; background: #ffffff12; }
+.admin-brand > img { width: 38px; height: 38px; flex: none; object-fit: contain; border-radius: 50%; background: #fff; padding: 2px; }
 .admin-campus > span { width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; background: #0a8f55; font-weight: 800; flex: none; }
 .admin-campus b, .admin-campus small { display: block; }
 .admin-campus b { font-size: 12px; }

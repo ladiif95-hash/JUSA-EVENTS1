@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BarChart3, CalendarDays, Crown, GraduationCap, LayoutDashboard, LogOut, Menu, QrCode, Settings, Users, Vote, X } from 'lucide-react';
+import { BarChart3, CalendarDays, Crown, LayoutDashboard, LogOut, Menu, QrCode, Settings, Users, Vote, X } from 'lucide-react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
@@ -21,7 +21,7 @@ export default function AdminLayout() {
       <aside className={open ? 'admin-sidebar open' : 'admin-sidebar'}>
         <button className="admin-close" aria-label="Close menu" onClick={close}><X/></button>
         <div className="admin-brand">
-          <span><GraduationCap/></span>
+          <img src="/images/jusa-logo.png" alt="JUSA logo" />
           <div><b>JUSA EVENTS</b><small>JUST ADMIN PORTAL</small></div>
         </div>
         <nav aria-label="Admin navigation">
@@ -56,4 +56,3 @@ export default function AdminLayout() {
     </div>
   );
 }
-
