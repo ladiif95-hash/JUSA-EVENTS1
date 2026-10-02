@@ -10,27 +10,28 @@
   },
   "dependencies": {
     "bcryptjs": "latest",
+    "cookie-parser": "latest",
+    "cors": "latest",
+    "dotenv": "latest",
     "express": "latest",
     "express-rate-limit": "latest",
     "jsonwebtoken": "latest",
-    "mongoose": "latest",
     "nodemailer": "latest",
+    "pg": "^8.23.1",
     "qrcode": "latest",
     "xlsx": "latest",
-    "zod": "latest",
-    "dotenv": "latest",
-    "cors": "latest"
-    ,"cookie-parser": "latest"
+    "zod": "latest"
   },
   "devDependencies": {
-    "typescript": "latest",
-    "tsx": "latest",
+    "@types/cookie-parser": "latest",
+    "@types/cors": "latest",
     "@types/express": "latest",
+    "@types/jsonwebtoken": "latest",
     "@types/node": "latest",
-    "@types/cors": "latest"
-    ,"@types/jsonwebtoken": "latest"
-    ,"@types/nodemailer": "latest"
-    ,"@types/qrcode": "latest"
-    ,"@types/cookie-parser": "latest"
+    "@types/nodemailer": "latest",
+    "@types/pg": "^8.23.1",
+    "@types/qrcode": "latest",
+    "tsx": "latest",
+    "typescript": "latest"
   }
 }

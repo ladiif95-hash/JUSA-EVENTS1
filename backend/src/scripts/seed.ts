@@ -1,33 +1,49 @@
 import '../config/env';
 import bcrypt from 'bcryptjs';
-import mongoose from 'mongoose';
-import { connectDatabase } from '../config/database';
-import { User } from '../models/user.model';
+import { connectDatabase, disconnectDatabase, query } from '../db';
+
+type SeedAccount = { fullName: string; email: string; password: string; role: 'SUPER_ADMIN' | 'ADMIN' | 'STUDENT'; profile?: { phone: string; faculty: string; department: string; semester: string; gender: string } };
 
 async function seed() {
-  if (!process.env.MONGODB_URI) throw new Error('MONGODB_URI is required before creating a development admin account.');
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error('DATABASE_URL is required before creating accounts.');
+  const isLocal = /@(localhost|127\.0\.0\.1)[:/]/.test(url);
+  const adminEmail = process.env.SEED_ADMIN_EMAIL?.trim().toLowerCase();
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD;
+
+  // A shared database must never receive accounts with publicly known passwords.
+  if (!isLocal && (!adminEmail || !adminPassword || adminPassword.length < 12 || adminPassword === 'JusaAdmin2026!')) {
+    throw new Error('For a hosted database set SEED_ADMIN_EMAIL and a unique SEED_ADMIN_PASSWORD (12+ characters).');
+  }
   await connectDatabase();
 
-  const accounts = [
-    { fullName: 'JUSA Super Administrator (Admin-ka Ugu Weyn)', email: (process.env.SEED_ADMIN_EMAIL || 'admin1@jusa.test').toLowerCase(), password: process.env.SEED_ADMIN_PASSWORD || 'JusaAdmin2026!', role: 'SUPER_ADMIN' },
-    { fullName: 'JUSA Administrator Two', email: 'admin2@jusa.test', password: 'JusaAdmin2026!', role: 'ADMIN' },
-    { fullName: 'JUSA Student One', email: 'student1@jusa.test', password: 'JusaStudent2026!', role: 'STUDENT' },
-    { fullName: 'JUSA Student Two', email: 'student2@jusa.test', password: 'JusaStudent2026!', role: 'STUDENT' },
-    { fullName: 'JUSA Student Three', email: 'student3@jusa.test', password: 'JusaStudent2026!', role: 'STUDENT' },
-  ] as const;
-  for (const account of accounts) {
-    await User.findOneAndUpdate(
-      { email: account.email },
-      { fullName: account.fullName, email: account.email, passwordHash: await bcrypt.hash(account.password, 12), role: account.role, status: 'ACTIVE', authProvider: 'LOCAL' },
-      { upsert: true, new: true, setDefaultsOnInsert: true },
+  const accounts: SeedAccount[] = [
+    { fullName: 'JUTSA Super Administrator', email: adminEmail || 'admin1@jusa.test', password: adminPassword || 'JusaAdmin2026!', role: 'SUPER_ADMIN' },
+  ];
+  if (isLocal) {
+    const profile = { phone: '+252610000000', faculty: 'Computer Science', department: 'Software Engineering', semester: '5', gender: 'MALE' };
+    accounts.push(
+      { fullName: 'JUTSA Administrator Two', email: 'admin2@jusa.test', password: 'JusaAdmin2026!', role: 'ADMIN' },
+      { fullName: 'JUTSA Student One', email: 'student1@jusa.test', password: 'JusaStudent2026!', role: 'STUDENT', profile },
+      { fullName: 'JUTSA Student Two', email: 'student2@jusa.test', password: 'JusaStudent2026!', role: 'STUDENT', profile: { ...profile, gender: 'FEMALE' } },
     );
   }
-  console.info(`Development accounts are ready: ${accounts.map(account => account.email).join(', ')}`);
-  await mongoose.disconnect();
+
+  for (const account of accounts) {
+    // Passwords are only set when an account is first created, so re-running never resets them.
+    await query(
+      `INSERT INTO users (full_name, email, password_hash, role, phone, faculty, department, semester, gender)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       ON CONFLICT (email) DO UPDATE SET role = EXCLUDED.role, status = 'ACTIVE', updated_at = now()`,
+      [account.fullName, account.email, await bcrypt.hash(account.password, 12), account.role, account.profile?.phone ?? null, account.profile?.faculty ?? null, account.profile?.department ?? null, account.profile?.semester ?? null, account.profile?.gender ?? null],
+    );
+  }
+  console.info(`Accounts ready: ${accounts.map((account) => `${account.email} (${account.role})`).join(', ')}`);
 }
 
-seed().catch(async (error) => {
-  console.error(error instanceof Error ? error.message : error);
-  await mongoose.disconnect();
-  process.exitCode = 1;
-});
+seed()
+  .catch((error) => {
+    console.error(error instanceof Error ? error.message : error);
+    process.exitCode = 1;
+  })
+  .finally(() => disconnectDatabase());

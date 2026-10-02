@@ -1,12 +1,15 @@
 services:
-  mongodb:
-    image: mongo:7
-    container_name: jusa-mongodb
+  postgres:
+    image: postgres:18
+    container_name: jusa-postgres
     restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: jusa_local
+      POSTGRES_DB: jusa_events
     ports:
-      - "127.0.0.1:27017:27017"
+      - "127.0.0.1:5432:5432"
     volumes:
-      - jusa_mongodb_data:/data/db
+      - jusa_postgres_data:/var/lib/postgresql
 
 volumes:
-  jusa_mongodb_data:
+  jusa_postgres_data:

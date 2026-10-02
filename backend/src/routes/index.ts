@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { isDatabaseReady } from '../db';
 import { adminRouter } from './admin.routes';
 import { authRouter } from './auth.routes';
 import { profileRouter } from './profile.routes';
@@ -9,7 +10,7 @@ import * as registration from '../controllers/registration.controller';
 import { asyncHandler } from '../middleware/error.middleware';
 
 export const router = Router();
-router.get('/health', (_request, response) => response.json({ status: 'ok' }));
+router.get('/health', (_request, response) => response.json({ status: 'ok', database: isDatabaseReady() ? 'connected' : 'disconnected' }));
 router.use('/auth', authRouter);
 router.use('/profile', profileRouter);
 router.use('/seminars', seminarRouter);

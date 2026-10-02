@@ -1,144 +1,145 @@
-import mongoose from 'mongoose';
+import crypto from 'crypto';
 import QRCode from 'qrcode';
-import { Attendance } from '../models/attendance.model';
-import { Registration } from '../models/registration.model';
-import { Seminar } from '../models/seminar.model';
-import { User } from '../models/user.model';
+import { count, isUuid, one, query, transaction, type Db, type Row } from '../db';
 import { createQrToken, hashToken } from '../utils/auth';
+import { seminarColumns } from '../db/sql';
 
 function referenceFor(id: string) {
-  return `JUSA-${id.slice(-8).toUpperCase()}`;
+  return `JUTSA-${id.replace(/-/g, '').slice(-8).toUpperCase()}`;
 }
 
-async function runWithOptionalTransaction<T>(work: (session: mongoose.ClientSession | null) => Promise<T>): Promise<T> {
-  const session = await mongoose.startSession();
-  try {
-    let result!: T;
-    await session.withTransaction(async () => {
-      result = await work(session);
-    });
-    return result;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : '';
-    if (/transaction|replica set|mongos/i.test(message)) return work(null);
-    throw error;
-  } finally {
-    await session.endSession();
-  }
+async function ensureAttendance(db: Db, registration: Row) {
+  await db.query(
+    `INSERT INTO attendance (seminar_id, user_id, registration_id) VALUES ($1, $2, $3)
+     ON CONFLICT (registration_id) DO UPDATE SET status = 'NOT_CHECKED_IN', checked_in_at = NULL, check_in_method = NULL, checked_in_by = NULL, updated_at = now()`,
+    [registration.seminarId, registration.userId, registration.id],
+  );
 }
 
 export async function registerForSeminar(seminarId: string, userId: string) {
-  return runWithOptionalTransaction(async (session) => {
-    const seminar = await Seminar.findById(seminarId).session(session);
+  if (!isUuid(seminarId)) throw new Error('Seminar is not available');
+  return transaction(async (db) => {
+    // Locking the seminar row serialises seat allocation, so concurrent requests can never overbook.
+    const seminar = await one('SELECT * FROM seminars WHERE id = $1 FOR UPDATE', [seminarId], db);
     if (!seminar || seminar.status !== 'PUBLISHED') throw new Error('Seminar is not available');
     const now = new Date();
     if (seminar.registrationOpenAt && seminar.registrationOpenAt > now) throw new Error('Registration is not open yet');
     if (seminar.registrationCloseAt < now) throw new Error('Registration has closed');
-    const existing = await Registration.findOne({ seminarId, userId }).session(session);
+    const existing = await one('SELECT * FROM registrations WHERE seminar_id = $1 AND user_id = $2', [seminarId, userId], db);
     if (existing && existing.status !== 'CANCELLED') throw new Error('You already have a registration for this seminar');
-    const registered = await Registration.countDocuments({ seminarId, status: 'REGISTERED' }).session(session);
+    const registered = await count("SELECT count(*) FROM registrations WHERE seminar_id = $1 AND status = 'REGISTERED'", [seminarId], db);
     if (registered >= seminar.capacity && !seminar.waitlistEnabled) throw new Error('Seminar is full');
     const status = registered < seminar.capacity ? 'REGISTERED' : 'WAITLISTED';
-    const qrToken = status === 'REGISTERED' ? createQrToken() : undefined;
-    const payload = {
-      status,
-      registeredAt: now,
-      cancelledAt: undefined,
-      qrToken,
-      qrTokenHash: qrToken ? hashToken(qrToken) : undefined,
-    };
-    let registration;
+    const qrToken = status === 'REGISTERED' ? createQrToken() : null;
+    const qrTokenHash = qrToken ? hashToken(qrToken) : null;
+
+    let registration: Row | null;
     if (existing) {
-      registration = await Registration.findByIdAndUpdate(existing._id, payload, { new: true, session });
+      registration = await one(
+        `UPDATE registrations SET status = $2, registered_at = now(), cancelled_at = NULL, promoted_from_waitlist_at = NULL, qr_token = $3, qr_token_hash = $4,
+           reference = COALESCE(reference, $5), updated_at = now() WHERE id = $1 RETURNING *`,
+        [existing.id, status, qrToken, qrTokenHash, referenceFor(existing.id)],
+        db,
+      );
     } else {
-      const created = await Registration.create([{ seminarId, userId, ...payload }], { session });
-      registration = created[0];
-    }
-    if (!registration) throw new Error('Unable to create registration');
-    if (!registration.reference) {
-      registration.reference = referenceFor(String(registration._id));
-      await registration.save({ session });
-    }
-    if (status === 'REGISTERED') {
-      await Attendance.findOneAndUpdate(
-        { registrationId: registration._id },
-        { seminarId, userId, registrationId: registration._id, status: 'NOT_CHECKED_IN' },
-        { upsert: true, session },
+      const id = crypto.randomUUID();
+      registration = await one(
+        'INSERT INTO registrations (id, seminar_id, user_id, status, qr_token, qr_token_hash, reference) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+        [id, seminarId, userId, status, qrToken, qrTokenHash, referenceFor(id)],
+        db,
       );
     }
+    if (!registration) throw new Error('Unable to create registration');
+    if (status === 'REGISTERED') await ensureAttendance(db, registration);
     const waitlistPosition = status === 'WAITLISTED'
-      ? await Registration.countDocuments({ seminarId, status: 'WAITLISTED', registeredAt: { $lte: registration.registeredAt } }).session(session)
+      // Compare in SQL: JS Dates drop PostgreSQL's microseconds, which would exclude this row itself.
+      ? await count("SELECT count(*) FROM registrations WHERE seminar_id = $1 AND status = 'WAITLISTED' AND registered_at <= (SELECT registered_at FROM registrations WHERE id = $2)", [seminarId, registration.id], db)
       : undefined;
-    return { registration, waitlistPosition };
+    return { registration, seminar, waitlistPosition };
   });
 }
 
 export async function cancelRegistration(idOrSeminarId: string, userId: string) {
-  return runWithOptionalTransaction(async (session) => {
-    let registration = await Registration.findOne({ seminarId: idOrSeminarId, userId, status: { $in: ['REGISTERED', 'WAITLISTED'] } }).session(session);
-    if (!registration) {
-      registration = await Registration.findOne({ _id: idOrSeminarId, userId, status: { $in: ['REGISTERED', 'WAITLISTED'] } }).session(session);
-    }
-    if (!registration) throw new Error('Active registration not found');
-    const seminar = await Seminar.findById(registration.seminarId).session(session);
+  if (!isUuid(idOrSeminarId)) throw new Error('Active registration not found');
+  return transaction(async (db) => {
+    const found = await one(
+      "SELECT seminar_id FROM registrations WHERE user_id = $2 AND status IN ('REGISTERED', 'WAITLISTED') AND (seminar_id = $1 OR id = $1) LIMIT 1",
+      [idOrSeminarId, userId],
+      db,
+    );
+    if (!found) throw new Error('Active registration not found');
+    const seminar = await one('SELECT * FROM seminars WHERE id = $1 FOR UPDATE', [found.seminarId], db);
     if (!seminar) throw new Error('Seminar not found');
-    if (registration.status === 'REGISTERED' && seminar.cancellationCloseAt && seminar.cancellationCloseAt < new Date()) {
-      throw new Error('Cancellation period has ended.');
-    }
-    const seminarId = String(seminar._id);
+    // Re-read under the seminar lock so a double click cannot cancel twice.
+    const registration = await one(
+      "SELECT * FROM registrations WHERE user_id = $2 AND seminar_id = $1 AND status IN ('REGISTERED', 'WAITLISTED') FOR UPDATE",
+      [seminar.id, userId],
+      db,
+    );
+    if (!registration) throw new Error('Active registration not found');
+    if (registration.status === 'REGISTERED' && seminar.cancellationCloseAt && seminar.cancellationCloseAt < new Date()) throw new Error('Cancellation period has ended.');
     const wasRegistered = registration.status === 'REGISTERED';
-    registration.status = 'CANCELLED';
-    registration.cancelledAt = new Date();
-    registration.qrToken = undefined;
-    registration.qrTokenHash = undefined;
-    await registration.save({ session });
+    const cancelled = await one(
+      "UPDATE registrations SET status = 'CANCELLED', cancelled_at = now(), qr_token = NULL, qr_token_hash = NULL, updated_at = now() WHERE id = $1 RETURNING *",
+      [registration.id],
+      db,
+    );
+    await db.query('DELETE FROM attendance WHERE registration_id = $1 AND status = $2', [registration.id, 'NOT_CHECKED_IN']);
+
     let promoted: { userId: string; registrationId: string } | undefined;
-    if (wasRegistered && seminar.status === 'PUBLISHED') {
-      const waitlisted = await Registration.findOne({ seminarId, status: 'WAITLISTED' }).sort({ registeredAt: 1 }).session(session);
-      if (waitlisted) {
+    const seatsTaken = await count("SELECT count(*) FROM registrations WHERE seminar_id = $1 AND status = 'REGISTERED'", [seminar.id], db);
+    if (wasRegistered && seminar.status === 'PUBLISHED' && seatsTaken < seminar.capacity) {
+      const next = await one("SELECT * FROM registrations WHERE seminar_id = $1 AND status = 'WAITLISTED' ORDER BY registered_at ASC LIMIT 1 FOR UPDATE", [seminar.id], db);
+      if (next) {
         const token = createQrToken();
-        waitlisted.status = 'REGISTERED';
-        waitlisted.promotedFromWaitlistAt = new Date();
-        waitlisted.qrToken = token;
-        waitlisted.qrTokenHash = hashToken(token);
-        await waitlisted.save({ session });
-        await Attendance.findOneAndUpdate(
-          { registrationId: waitlisted._id },
-          { seminarId, userId: waitlisted.userId, registrationId: waitlisted._id, status: 'NOT_CHECKED_IN' },
-          { upsert: true, session },
+        const updated = await one(
+          "UPDATE registrations SET status = 'REGISTERED', promoted_from_waitlist_at = now(), qr_token = $2, qr_token_hash = $3, updated_at = now() WHERE id = $1 RETURNING *",
+          [next.id, token, hashToken(token)],
+          db,
         );
-        promoted = { userId: String(waitlisted.userId), registrationId: String(waitlisted._id) };
+        await ensureAttendance(db, updated!);
+        promoted = { userId: next.userId, registrationId: next.id };
       }
     }
-    return { registration, promoted };
+    return { registration: cancelled, promoted, seminar };
   });
 }
 
+const SEMINAR_FIELDS = seminarColumns('seminars');
+
+// Registrations with their seminar (and optionally user) nested as objects, matching the API shape the frontend expects.
+export async function registrationsWithRelations(where: string, params: unknown[], options: { userFields?: string; order?: string } = {}): Promise<Row[]> {
+  const userJoin = options.userFields ? `, (SELECT to_jsonb(u) FROM (SELECT ${options.userFields} FROM users WHERE users.id = r.user_id) u) AS user_json` : '';
+  const rows = await query(
+    `SELECT r.*, (SELECT to_jsonb(s) FROM (SELECT ${SEMINAR_FIELDS} FROM seminars WHERE seminars.id = r.seminar_id) s) AS seminar_json${userJoin}
+     FROM registrations r WHERE ${where} ORDER BY ${options.order || 'r.registered_at ASC'}`,
+    params,
+  );
+  return rows.map(({ seminarJson, userJson, qrToken: _qrToken, qrTokenHash: _qrTokenHash, ...registration }) => ({
+    ...registration,
+    seminarId: seminarJson ?? registration.seminarId,
+    ...(options.userFields ? { userId: userJson ?? registration.userId } : {}),
+  }));
+}
+
 export async function getQrDataUrl(registrationId: string, userId: string) {
-  const registration = await Registration.findOne({ _id: registrationId, userId }).populate('seminarId').populate('userId', 'fullName email');
+  if (!isUuid(registrationId)) throw new Error('QR pass is unavailable');
+  const registration = await one('SELECT * FROM registrations WHERE id = $1 AND user_id = $2', [registrationId, userId]);
   if (!registration || registration.status === 'CANCELLED') throw new Error('This Registration Was Cancelled');
   if (registration.status !== 'REGISTERED' || !registration.qrToken) throw new Error('QR pass is unavailable');
   const dataUrl = await QRCode.toDataURL(registration.qrToken, { width: 360, margin: 2, color: { dark: '#087346', light: '#FFFFFFFF' } });
-  const attendance = await Attendance.findOne({ registrationId: registration._id });
-  return { dataUrl, registration, attendance };
-}
-
-export async function waitlistPosition(seminarId: string, registration: { registeredAt: Date }) {
-  return Registration.countDocuments({ seminarId, status: 'WAITLISTED', registeredAt: { $lte: registration.registeredAt } });
+  const [withRelations] = await registrationsWithRelations('r.id = $1', [registration.id], { userFields: 'id, full_name, email' });
+  const attendance = await one('SELECT * FROM attendance WHERE registration_id = $1', [registration.id]);
+  return { dataUrl, registration: withRelations, attendance };
 }
 
 export async function seatCounts(seminarId: string) {
-  const [registered, waitlisted, cancelled] = await Promise.all([
-    Registration.countDocuments({ seminarId, status: 'REGISTERED' }),
-    Registration.countDocuments({ seminarId, status: 'WAITLISTED' }),
-    Registration.countDocuments({ seminarId, status: 'CANCELLED' }),
-  ]);
-  return { registered, waitlisted, cancelled };
-}
-
-export async function notifyPromotion(promoted?: { userId: string; registrationId: string }) {
-  if (!promoted) return;
-  const user = await User.findById(promoted.userId);
-  const registration = await Registration.findById(promoted.registrationId).populate('seminarId');
-  return { user, registration };
+  const row = await one(
+    `SELECT count(*) FILTER (WHERE status = 'REGISTERED')::int AS registered,
+            count(*) FILTER (WHERE status = 'WAITLISTED')::int AS waitlisted,
+            count(*) FILTER (WHERE status = 'CANCELLED')::int AS cancelled
+     FROM registrations WHERE seminar_id = $1`,
+    [seminarId],
+  );
+  return { registered: row?.registered ?? 0, waitlisted: row?.waitlisted ?? 0, cancelled: row?.cancelled ?? 0 };
 }

@@ -1,3 +1,0 @@
-import { Schema, model } from 'mongoose';
-const attendanceSchema = new Schema({ seminarId: { type: Schema.Types.ObjectId, ref: 'Seminar', required: true }, userId: { type: Schema.Types.ObjectId, ref: 'User', required: true }, registrationId: { type: Schema.Types.ObjectId, ref: 'Registration', required: true, unique: true }, status: { type: String, enum: ['NOT_CHECKED_IN', 'CHECKED_IN'], default: 'NOT_CHECKED_IN' }, checkedInAt: Date, checkInMethod: { type: String, enum: ['QR', 'MANUAL'] }, checkedInBy: { type: Schema.Types.ObjectId, ref: 'User' } }, { timestamps: true });
-export const Attendance = model('Attendance', attendanceSchema);
