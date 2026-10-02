@@ -1,5 +1,27 @@
+# Dependencies
 node_modules/
+
+# Build output
 dist/
+*.tsbuildinfo
+
+# Environment and secrets (never commit real credentials)
 .env
 .env.local
+.env.*.local
+backend/.env*
+!backend/.env.example
+!backend/.env.local.example
+
+# Logs, coverage and tooling
 coverage/
+*.log
+npm-debug.log*
+.vercel/
+.claude/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
