@@ -1,0 +1,99 @@
+/* ==========================================================================
+   Admin shell: 250px sidebar (76px collapsed), 64px header, 24px body padding.
+   Loaded last; overrides the older layout rules in sidebar.css/theme.css.
+   ========================================================================== */
+:root { --sidebar-w: 250px; --sidebar-w-collapsed: 76px; --header-h: 64px; --body-pad: 24px; --just-radius: 16px; }
+
+body:has(.admin-layout) { overflow: hidden; }
+.admin-layout { display: grid !important; grid-template-columns: var(--sidebar-w) minmax(0, 1fr) !important; height: 100dvh; overflow: hidden; transition: grid-template-columns .22s ease; }
+.admin-layout.collapsed { grid-template-columns: var(--sidebar-w-collapsed) minmax(0, 1fr) !important; }
+.admin-main { display: flex; flex-direction: column; min-width: 0; height: 100dvh; }
+.admin-layout .admin-main > .admin-content { flex: 1; min-height: 0; height: auto !important; padding: var(--body-pad) !important; overflow-x: hidden; overflow-y: auto; }
+
+/* ---------- Header (64px) ---------- */
+.admin-layout .admin-topbar { position: relative !important; inset: auto !important; z-index: 20; display: flex !important; align-items: center; gap: 12px; flex: none; height: var(--header-h) !important; padding: 0 var(--body-pad) !important; background: #fff !important; border-bottom: 1px solid var(--just-line); color: var(--just-ink) !important; box-shadow: none !important; }
+.admin-topbar .admin-menu, .admin-topbar .admin-collapse { position: static !important; display: grid; place-items: center; width: 40px; height: 40px; min-height: 0; flex: none; border: 1px solid var(--just-line) !important; border-radius: 10px; background: #fff !important; color: #475467 !important; cursor: pointer; transition: background .15s, color .15s; }
+.admin-topbar .admin-menu:hover, .admin-topbar .admin-collapse:hover { background: var(--just-navy-tint) !important; color: var(--just-navy) !important; }
+.admin-topbar .admin-menu svg, .admin-topbar .admin-collapse svg { width: 20px; height: 20px; }
+.admin-topbar .admin-menu { display: none !important; }
+.admin-topbar-title { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.admin-topbar-title img { display: none; width: 32px; height: 32px; flex: none; border-radius: 50%; }
+.admin-topbar-title span { display: grid; min-width: 0; line-height: 1.2; }
+.admin-topbar-title small { color: var(--just-muted); font-size: 11.5px; }
+.admin-topbar-title b { overflow: hidden; font-size: 16px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.admin-topbar-right { display: flex; align-items: center; gap: 14px; margin-left: auto; }
+.admin-topbar-right .theme-switch { font-size: 7px; margin: 0 !important; }
+.admin-user-chip { display: flex; align-items: center; gap: 10px; padding: 4px 12px 4px 4px; border: 1px solid var(--just-line); border-radius: 99px; color: var(--just-ink); transition: background .15s; }
+.admin-user-chip:hover { background: #F7F8FC; }
+.admin-user-chip > span { display: grid; place-items: center; width: 36px; height: 36px; overflow: hidden; border-radius: 50%; background: var(--just-navy); color: #fff; font-size: 13px; font-weight: 700; }
+.admin-user-chip > span img, .admin-user > span img { width: 100%; height: 100%; object-fit: cover; }
+.admin-user-chip div { display: grid; line-height: 1.25; }
+.admin-user-chip b { max-width: 160px; overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.admin-user-chip small { color: var(--just-muted); font-size: 11px; }
+.admin-topbar-avatar { display: none !important; }
+
+/* ---------- Sidebar ---------- */
+.admin-layout .admin-sidebar { position: relative !important; display: flex; flex-direction: column; width: auto !important; height: 100dvh; min-height: 0; padding: 0 14px 16px !important; overflow-x: hidden; overflow-y: auto; transform: none !important; }
+.admin-sidebar .admin-brand { height: var(--header-h); margin: 0 0 6px; padding: 0 6px; border-bottom: 1px solid rgb(255 255 255 / .1); flex: none; }
+.admin-sidebar .admin-brand > img { width: 38px; height: 38px; }
+.admin-sidebar .admin-brand div { min-width: 0; overflow: hidden; white-space: nowrap; }
+.admin-sidebar nav a { min-height: 46px !important; }
+.admin-sidebar nav a.active::before { left: -14px !important; }
+.admin-sidebar nav a span, .admin-sidebar .admin-user div, .admin-sidebar-bottom button span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.admin-sidebar .admin-close { display: none; }
+.admin-sidebar-bottom { margin-top: auto !important; }
+.admin-sidebar-bottom > button { gap: 8px; }
+
+/* Collapsed (76px): icons only, labels via tooltips */
+.admin-layout.collapsed .admin-sidebar { padding: 0 10px 16px !important; overflow: visible; }
+.admin-layout.collapsed .admin-brand { justify-content: center; padding: 0; }
+.admin-layout.collapsed .admin-brand div,
+.admin-layout.collapsed .admin-sidebar nav a span,
+.admin-layout.collapsed .admin-sidebar .admin-user div,
+.admin-layout.collapsed .admin-sidebar-bottom button span { display: none; }
+.admin-layout.collapsed .admin-nav-label { height: 1px; margin: 12px 8px; overflow: hidden; background: rgb(255 255 255 / .12); color: transparent; font-size: 0; }
+.admin-layout.collapsed .admin-sidebar nav a { justify-content: center; padding: 0 !important; }
+.admin-layout.collapsed .admin-sidebar nav a.active::before { left: -10px !important; }
+.admin-layout.collapsed .admin-sidebar-bottom { padding: 10px 6px !important; }
+.admin-layout.collapsed .admin-user { justify-content: center; }
+.admin-layout.collapsed .admin-sidebar-bottom > button { padding: 0; }
+/* Tooltips beside the icons, only while collapsed */
+.admin-sidebar [data-tooltip]::after { display: none; }
+.admin-layout.collapsed .admin-sidebar [data-tooltip]::after { display: block; top: 50% !important; bottom: auto !important; left: calc(100% + 12px) !important; transform: translate(-4px, -50%) !important; }
+@media (hover: hover) { .admin-layout.collapsed .admin-sidebar [data-tooltip]:hover::after { transform: translate(0, -50%) !important; } }
+
+/* ---------- Phones / small tablets: drawer sidebar ---------- */
+@media (max-width: 760px) {
+  .admin-layout, .admin-layout.collapsed { display: block !important; }
+  .admin-main { height: 100dvh; }
+  .admin-layout .admin-main > .admin-content { padding: 16px !important; }
+  .admin-layout .admin-topbar { padding: env(safe-area-inset-top) 12px 0 !important; height: calc(var(--header-h) + env(safe-area-inset-top)) !important; }
+  .admin-topbar .admin-menu { display: grid !important; }
+  .admin-topbar .admin-collapse { display: none !important; }
+  .admin-topbar-title img { display: block; }
+  .admin-topbar-title small { display: none; }
+  .admin-user-chip { padding: 0; border: 0; }
+  .admin-user-chip div { display: none; }
+  .admin-topbar-right { gap: 10px; }
+  .admin-layout .admin-sidebar, .admin-layout.collapsed .admin-sidebar { position: fixed !important; z-index: 40; inset: 0 auto 0 0 !important; width: min(var(--sidebar-w), 86vw) !important; padding: 0 14px 16px !important; overflow-y: auto; transform: translateX(-105%) !important; transition: transform .22s ease; }
+  .admin-layout .admin-sidebar.open { transform: translateX(0) !important; }
+  .admin-sidebar .admin-close { display: grid; position: absolute; top: 12px; right: 10px; }
+  /* The drawer always shows full labels, even if the desktop sidebar is collapsed. */
+  .admin-layout.collapsed .admin-sidebar :is(.admin-brand div, nav a span, .admin-user div, .admin-sidebar-bottom button span) { display: revert; }
+  .admin-layout.collapsed .admin-nav-label { height: auto; margin: 18px 12px 8px; background: none; color: rgb(255 255 255 / .45); font-size: 10.5px; }
+  .admin-layout.collapsed .admin-sidebar nav a { justify-content: flex-start; padding: 0 12px !important; }
+  .admin-layout.collapsed .admin-brand { justify-content: flex-start; padding: 0 6px; }
+  .admin-layout.collapsed .admin-sidebar [data-tooltip]::after { display: none; }
+}
+
+/* ---------- Public site sidebar matches the 250px spec ---------- */
+@media (min-width: 761px) {
+  .public-shell { grid-template-columns: var(--sidebar-w) minmax(0, 1fr) !important; }
+  .site-header { width: var(--sidebar-w) !important; }
+  .nav-links > a { min-height: 46px; }
+}
+
+/* ---------- Dark mode ---------- */
+html[data-theme="dark"] .admin-layout .admin-topbar { background: var(--d-surface) !important; border-color: var(--d-line); color: var(--d-text) !important; }
+html[data-theme="dark"] :is(.admin-topbar .admin-menu, .admin-topbar .admin-collapse, .admin-user-chip) { background: var(--d-surface-2) !important; border-color: var(--d-line) !important; color: var(--d-text) !important; }
+html[data-theme="dark"] .admin-user-chip:hover { background: #262E6E !important; }

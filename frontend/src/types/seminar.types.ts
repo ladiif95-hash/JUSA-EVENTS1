@@ -17,6 +17,7 @@ export interface Seminar {
   shortDescription?: string;
   image: string;
   coverImage?: string;
+  speakerPhoto?: string;
   featured?: boolean;
   status?: string;
   organizer?: string;

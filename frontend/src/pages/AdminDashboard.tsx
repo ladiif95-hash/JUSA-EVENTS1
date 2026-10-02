@@ -1,299 +1,204 @@
-import { useEffect, useState } from 'react';
-import { BarChart3, CalendarDays, CheckCircle2, ClipboardList, Crown, PieChart, QrCode, TrendingUp, Users } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { ArrowRight, BarChart3, CalendarDays, CalendarPlus, CheckCircle2, ChevronRight, ClipboardList, Clock3, FileSpreadsheet, MapPin, Plus, QrCode, UserPlus, Users, Vote } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { mapSeminar, seminarService, type DashboardData } from '../services/seminar.service';
 import type { Seminar } from '../types/seminar.types';
 import { ErrorState, LoadingState } from '../components/StateViews';
+import { useAuth } from '../context/AuthContext';
+import { formatCampusDate, formatCampusTime } from '../utils/campus';
 
-const SEMESTER_COLORS = ['#0a8f55', '#2563eb', '#7c3aed', '#d97706', '#dc2626', '#0891b2', '#ca8a04', '#4f46e5', '#db2777', '#059669'];
+type SeminarStat = NonNullable<DashboardData['seminarStats']>[number];
+
+const statusTone: Record<string, string> = { PUBLISHED: 'ok', REGISTERED: 'ok', DRAFT: 'muted', COMPLETED: 'info', CANCELLED: 'danger', WAITLISTED: 'warn', ARCHIVED: 'muted' };
+const semesterLabel = (value: string) => (/^\d+$/.test(value) ? `Semester ${value}` : value);
+const initials = (name: string) => name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase();
+const percent = (part: number, whole: number) => (whole ? Math.round((part / whole) * 100) : 0);
+
+function timeAgo(value: string) {
+  const seconds = Math.round((new Date(value).getTime() - Date.now()) / 1000);
+  const format = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
+  const steps: [Intl.RelativeTimeFormatUnit, number][] = [['day', 86400], ['hour', 3600], ['minute', 60]];
+  for (const [unit, size] of steps) if (Math.abs(seconds) >= size) return format.format(Math.round(seconds / size), unit);
+  return 'just now';
+}
+
+const quickActions = [
+  { to: '/admin/seminars/new', label: 'Create seminar', hint: 'Publish a new event', Icon: CalendarPlus },
+  { to: '/admin/check-in', label: 'Check in attendees', hint: 'Scan QR passes at the door', Icon: QrCode },
+  { to: '/admin/voting', label: 'Start a vote', hint: 'Let students choose the next topic', Icon: Vote },
+  { to: '/admin/reports', label: 'Reports & exports', hint: 'Attendance and Excel downloads', Icon: FileSpreadsheet },
+  { to: '/admin/users', label: 'Manage team', hint: 'Staff and administrator accounts', Icon: UserPlus },
+];
 
 export default function AdminDashboard() {
+  const { user } = useAuth();
   const [items, setItems] = useState<Seminar[]>([]);
-  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   const load = () => {
     setLoading(true);
     setError('');
-    Promise.all([
-      seminarService.adminList(),
-      seminarService.dashboard(),
-    ])
-      .then(([seminarsRes, dashRes]) => {
-        setItems(seminarsRes.data.map(mapSeminar));
-        setDashboardData(dashRes.data);
-      })
+    Promise.all([seminarService.adminList(), seminarService.dashboard()])
+      .then(([seminarsRes, dashRes]) => { setItems(seminarsRes.data.map(mapSeminar)); setData(dashRes.data); })
       .catch((issue) => setError(issue instanceof Error ? issue.message : 'Unable to load dashboard data.'))
       .finally(() => setLoading(false));
   };
-
   useEffect(load, []);
+
+  // Older API builds don't send seminarStats; derive them from the seminar list instead.
+  const stats: SeminarStat[] = useMemo(() => data?.seminarStats ?? items.slice(0, 8).map((item) => ({
+    id: item.id, title: item.title, slug: item.slug, venue: item.venue, capacity: item.capacity, status: item.status || 'PUBLISHED',
+    startDateTime: item.startDateTime || '', endDateTime: item.endDateTime || '', registered: item.reserved || 0, waitlisted: item.waitlisted || 0, checkedIn: 0,
+  })), [data, items]);
 
   if (loading) return <section className="admin-page"><LoadingState /></section>;
   if (error) return <section className="admin-page"><ErrorState message={error} retry={load} /></section>;
 
-  const totalRegistrations = dashboardData?.registrations ?? items.reduce((sum, item) => sum + (item.reserved || item.registered || 0), 0);
-  const totalCapacity = items.reduce((sum, item) => sum + item.capacity, 0);
-  const totalAttendance = dashboardData?.attendance ?? 0;
-  const totalWaitlisted = dashboardData?.waitlisted ?? items.reduce((sum, item) => sum + (item.waitlisted || 0), 0);
+  const registrations = data?.registrations ?? 0;
+  const attended = data?.attendance ?? 0;
+  const capacity = items.reduce((sum, item) => sum + item.capacity, 0);
+  const fillRate = percent(registrations, capacity);
+  const upcoming = stats.filter((item) => item.startDateTime && new Date(item.startDateTime).getTime() >= Date.now()).slice(0, 4);
+  const recent = data?.recentRegistrations ?? [];
+  const semesters = (data?.semesterStats || []).slice(0, 3);
+  const male = data?.genderStats.find((g) => g.rawGender === 'MALE')?.count ?? 0;
+  const female = data?.genderStats.find((g) => g.rawGender === 'FEMALE')?.count ?? 0;
+  const firstName = user?.fullName?.split(' ')[0] || 'Admin';
+  const today = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Africa/Mogadishu' });
 
-  const cards = [
-    ['Total seminars', String(items.length), CalendarDays, '#087346'],
-    ['Registrations', String(totalRegistrations), Users, '#2563eb'],
-    ['Attended / Checked-in', String(totalAttendance), CheckCircle2, '#0a8f55'],
-    ['Waitlisted', String(totalWaitlisted), ClipboardList, '#d97706'],
-  ] as const;
-
-  const semesterStats = dashboardData?.semesterStats || [];
-  const topSemester = semesterStats[0];
-
-  const genderStats = dashboardData?.genderStats || [];
-  const maleStat = genderStats.find((g) => g.gender === 'Male' || g.rawGender === 'MALE') || { gender: 'Male', count: 0, percentage: 0 };
-  const femaleStat = genderStats.find((g) => g.gender === 'Female' || g.rawGender === 'FEMALE') || { gender: 'Female', count: 0, percentage: 0 };
-  const totalGenderCount = maleStat.count + femaleStat.count;
-  const malePercentage = totalGenderCount > 0 ? Math.round((maleStat.count / totalGenderCount) * 100) : 0;
-  const femalePercentage = totalGenderCount > 0 ? Math.round((femaleStat.count / totalGenderCount) * 100) : 0;
+  const kpis = [
+    { label: 'Total seminars', value: items.length, note: `${data?.upcomingSeminars ?? 0} upcoming`, Icon: CalendarDays },
+    { label: 'Registrations', value: registrations, note: `${fillRate}% of seats filled`, Icon: Users },
+    { label: 'Checked in', value: attended, note: `${percent(attended, registrations)}% attendance rate`, Icon: CheckCircle2 },
+    { label: 'Waitlisted', value: data?.waitlisted ?? 0, note: `${data?.cancelled ?? 0} cancelled`, Icon: ClipboardList },
+  ];
 
   return (
-    <section className="admin-page">
-      <div className="admin-title">
+    <section className="admin-page db">
+      <header className="db-head">
         <div>
-          <span className="eyebrow">ADMIN OVERVIEW</span>
-          <h1>Dashboard</h1>
-          <p className="admin-lead">A clear view of current JUSA seminars, registrations, and student demographics.</p>
+          <span className="db-date">{today}</span>
+          <h1>Welcome back, {firstName}</h1>
+          <p>Here is what is happening across JUTSA events today.</p>
         </div>
-        <div className="admin-actions">
-          <Link className="button button-outline" to="/admin/check-in"><QrCode />Check-in</Link>
-          <Link className="button" to="/admin/seminars/new">Create seminar</Link>
+        <div className="db-head-actions">
+          <Link className="button button-outline" to="/admin/check-in"><QrCode aria-hidden="true" />Check-in</Link>
+          <Link className="button" to="/admin/seminars/new"><Plus aria-hidden="true" />Create seminar</Link>
         </div>
-      </div>
+      </header>
 
-      {/* Top Metric Grid */}
-      <div className="metric-grid">
-        {cards.map(([label, value, Icon, iconColor]) => (
-          <article key={label}>
-            <Icon style={{ color: iconColor }} />
-            <span>{label}</span>
-            <b>{value}</b>
+      <div className="db-kpis">
+        {kpis.map(({ label, value, note, Icon }) => (
+          <article key={label} className="db-kpi">
+            <div className="db-kpi-top"><span>{label}</span><i><Icon aria-hidden="true" /></i></div>
+            <b>{value.toLocaleString()}</b>
+            <small>{note}</small>
           </article>
         ))}
       </div>
 
-      {/* Visual Charts Section (Semester & Gender Demographics) */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 24, marginTop: 24 }}>
-
-        {/* Chart 1: Semester Participation */}
-        <div className="admin-panel" style={{ marginTop: 0 }}>
-          <div className="panel-head">
-            <div>
-              <span className="eyebrow">STUDENT PARTICIPATION</span>
-              <h2><BarChart3 style={{ verticalAlign: 'middle', marginRight: 6 }} /> Semesters with Most Applications</h2>
-              <p style={{ margin: '4px 0 0', color: '#6b7280', fontSize: 13, border: 0, padding: 0 }}>
-                Which semester applied the most across all seminars.
-              </p>
-            </div>
+      <div className="db-grid">
+        <article className="db-card">
+          <header className="db-card-head">
+            <div><h2>Registrations overview</h2><p>Seats, registrations and check-ins per seminar</p></div>
+            <Link className="text-link" to="/admin/reports">Reports <ArrowRight aria-hidden="true" /></Link>
+          </header>
+          <div className="db-capacity">
+            <div><strong>{fillRate}%</strong><span>{registrations.toLocaleString()} of {capacity.toLocaleString()} seats reserved</span></div>
+            <div className="db-capacity-bar" role="progressbar" aria-valuenow={fillRate} aria-valuemin={0} aria-valuemax={100} aria-label="Seat capacity"><i style={{ width: `${Math.min(100, fillRate)}%` }} /></div>
           </div>
-
-          {topSemester && topSemester.count > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: '#fef3c7', borderRadius: 10, margin: '14px 0 16px', color: '#92400e', fontSize: 13, fontWeight: 600 }}>
-              <Crown style={{ width: 18, color: '#d97706', flexShrink: 0 }} />
-              <span>Leading: <b>{topSemester.semester}</b> with <b>{topSemester.count}</b> applicants ({topSemester.percentage}%)</span>
-            </div>
-          )}
-
-          <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
-            {semesterStats.length > 0 ? (
-              semesterStats.map((item, idx) => {
-                const color = SEMESTER_COLORS[idx % SEMESTER_COLORS.length];
-                const isTop = idx === 0 && item.count > 0;
-
+          {stats.length ? <>
+            <ul className="db-legend" aria-hidden="true"><li className="in">Checked in</li><li className="reg">Registered</li><li className="free">Available</li></ul>
+            <ul className="db-bars">
+              {stats.slice(0, 6).map((item) => {
+                const cap = Math.max(item.capacity, item.registered, 1);
                 return (
-                  <div
-                    key={item.semester}
-                    style={{
-                      padding: '10px 14px',
-                      borderRadius: 10,
-                      background: isTop ? '#f0fdf4' : '#f9fafb',
-                      border: `1px solid ${isTop ? '#86efac' : '#e5e7eb'}`,
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ width: 10, height: 10, borderRadius: '50%', background: color }} />
-                        <b style={{ fontSize: 14, color: '#111827' }}>{item.semester}</b>
-                        {isTop && (
-                          <span style={{ fontSize: 11, padding: '1px 6px', borderRadius: 99, background: '#dcfce7', color: '#15803d', fontWeight: 700 }}>
-                            #1 Top
-                          </span>
-                        )}
-                      </div>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: color }}>
-                        {item.count} student{item.count === 1 ? '' : 's'} ({item.percentage}%)
-                      </span>
+                  <li key={item.id}>
+                    <div className="db-bar-label"><Link to={`/admin/seminars/${item.id}/participants`}>{item.title}</Link><span>{item.registered}/{item.capacity}</span></div>
+                    <div className="db-bar" title={`${item.checkedIn} checked in · ${item.registered} registered · ${item.capacity} seats`}>
+                      <i className="in" style={{ width: `${(item.checkedIn / cap) * 100}%` }} />
+                      <i className="reg" style={{ width: `${(Math.max(0, item.registered - item.checkedIn) / cap) * 100}%` }} />
                     </div>
-                    <div style={{ height: 8, width: '100%', background: '#e5e7eb', borderRadius: 99, overflow: 'hidden' }}>
-                      <div
-                        style={{
-                          height: '100%',
-                          width: `${Math.max(item.percentage, item.count > 0 ? 4 : 0)}%`,
-                          background: color,
-                          borderRadius: 'inherit',
-                          transition: 'width 0.4s ease',
-                        }}
-                      />
-                    </div>
-                  </div>
+                  </li>
                 );
-              })
-            ) : (
-              <p style={{ color: '#6b7280', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>
-                No semester application data available yet.
-              </p>
-            )}
-          </div>
-        </div>
+              })}
+            </ul>
+          </> : <div className="db-empty"><BarChart3 aria-hidden="true" /><b>No registration data yet</b><span>Charts appear once students start reserving seats.</span></div>}
+        </article>
 
-        {/* Chart 2: Gender Demographics */}
-        <div className="admin-panel" style={{ marginTop: 0 }}>
-          <div className="panel-head">
-            <div>
-              <span className="eyebrow">GENDER DEMOGRAPHICS</span>
-              <h2><PieChart style={{ verticalAlign: 'middle', marginRight: 6 }} /> Male vs Female Applicants</h2>
-              <p style={{ margin: '4px 0 0', color: '#6b7280', fontSize: 13, border: 0, padding: 0 }}>
-                Comparison of male and female students across registrations.
-              </p>
-            </div>
-          </div>
+        <article className="db-card">
+          <header className="db-card-head"><div><h2>Quick actions</h2><p>Common admin tasks</p></div></header>
+          <nav className="db-actions" aria-label="Quick actions">
+            {quickActions.map(({ to, label, hint, Icon }) => (
+              <Link key={to} to={to}><i><Icon aria-hidden="true" /></i><span><b>{label}</b><small>{hint}</small></span><ChevronRight aria-hidden="true" className="db-chevron" /></Link>
+            ))}
+          </nav>
+        </article>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 14 }}>
-            {/* Male Card */}
-            <div style={{ padding: '16px', borderRadius: 12, background: '#eff6ff', border: '1px solid #bfdbfe', textAlign: 'center' }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: '#1e40af', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                👨 Male Students
-              </span>
-              <b style={{ display: 'block', fontSize: 32, color: '#1e3a8a', margin: '6px 0 2px' }}>
-                {maleStat.count}
-              </b>
-              <span style={{ fontSize: 14, fontWeight: 700, color: '#2563eb' }}>
-                {malePercentage}% of applicants
-              </span>
-            </div>
+        <article className="db-card">
+          <header className="db-card-head">
+            <div><h2>Upcoming seminars</h2><p>The next events on the calendar</p></div>
+            <Link className="text-link" to="/admin/seminars">Manage all <ArrowRight aria-hidden="true" /></Link>
+          </header>
+          {upcoming.length ? (
+            <ul className="db-upcoming">
+              {upcoming.map((item) => {
+                const fill = percent(item.registered, item.capacity);
+                return (
+                  <li key={item.id}>
+                    <span className="db-date-block"><b>{formatCampusDate(item.startDateTime, { day: 'numeric' })}</b><small>{formatCampusDate(item.startDateTime, { month: 'short' })}</small></span>
+                    <div className="db-upcoming-main">
+                      <Link to={`/admin/seminars/${item.id}/participants`}>{item.title}</Link>
+                      <span><Clock3 aria-hidden="true" />{formatCampusTime(item.startDateTime)}<MapPin aria-hidden="true" />{item.venue}</span>
+                    </div>
+                    <div className="db-upcoming-seats">
+                      <span>{item.registered}/{item.capacity}</span>
+                      <i><u style={{ width: `${Math.min(100, fill)}%` }} /></i>
+                    </div>
+                    <span className={`status-pill ${statusTone[item.status] || 'muted'}`}>{item.status.toLowerCase()}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <div className="db-empty"><CalendarDays aria-hidden="true" /><b>No upcoming seminars</b><span>Create an event to open registrations.</span><Link className="button button-sm" to="/admin/seminars/new"><Plus aria-hidden="true" />Create seminar</Link></div>
+          )}
+        </article>
 
-            {/* Female Card */}
-            <div style={{ padding: '16px', borderRadius: 12, background: '#fdf2f8', border: '1px solid #fbcfe8', textAlign: 'center' }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: '#9d174d', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                👩 Female Students
-              </span>
-              <b style={{ display: 'block', fontSize: 32, color: '#831843', margin: '6px 0 2px' }}>
-                {femaleStat.count}
-              </b>
-              <span style={{ fontSize: 14, fontWeight: 700, color: '#db2777' }}>
-                {femalePercentage}% of applicants
-              </span>
-            </div>
-          </div>
+        <div className="db-stack">
+          <article className="db-card">
+            <header className="db-card-head"><div><h2>Recent registrations</h2><p>Latest student sign-ups</p></div></header>
+            {recent.length ? (
+              <ul className="db-recent">
+                {recent.map((item) => (
+                  <li key={item.id}>
+                    <span className="db-avatar">{item.profilePhoto ? <img src={item.profilePhoto} alt="" /> : initials(item.fullName)}</span>
+                    <div><b>{item.fullName}</b><small>{item.seminarTitle} · {timeAgo(item.registeredAt)}</small></div>
+                    <span className={`status-pill ${statusTone[item.status] || 'muted'}`}>{item.status.toLowerCase()}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : <div className="db-empty compact"><Users aria-hidden="true" /><span>New registrations will appear here.</span></div>}
+          </article>
 
-          {/* Visual Dual-Proportion Comparison Bar */}
-          <div style={{ marginTop: 20 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 600, color: '#6b7280', marginBottom: 6 }}>
-              <span style={{ color: '#2563eb' }}>Male ({malePercentage}%)</span>
-              <span style={{ color: '#db2777' }}>Female ({femalePercentage}%)</span>
-            </div>
-            <div style={{ height: 18, width: '100%', borderRadius: 99, overflow: 'hidden', display: 'flex', background: '#e5e7eb' }}>
-              {malePercentage > 0 && (
-                <div
-                  style={{
-                    width: `${malePercentage}%`,
-                    background: '#2563eb',
-                    height: '100%',
-                    transition: 'width 0.5s ease',
-                  }}
-                  title={`Male: ${maleStat.count} (${malePercentage}%)`}
-                />
-              )}
-              {femalePercentage > 0 && (
-                <div
-                  style={{
-                    width: `${femalePercentage}%`,
-                    background: '#db2777',
-                    height: '100%',
-                    transition: 'width 0.5s ease',
-                  }}
-                  title={`Female: ${femaleStat.count} (${femalePercentage}%)`}
-                />
-              )}
-            </div>
-          </div>
-
-          {/* Insight Callout */}
-          <div style={{ marginTop: 18, padding: '12px 14px', borderRadius: 10, background: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#475467' }}>
-            <TrendingUp style={{ width: 16, color: '#087346', flexShrink: 0 }} />
-            <span>
-              {totalGenderCount > 0 ? (
-                malePercentage > femalePercentage ? (
-                  <><b>Male students</b> represent the majority of seminar registrations (<b>{malePercentage}%</b>).</>
-                ) : femalePercentage > malePercentage ? (
-                  <><b>Female students</b> represent the majority of seminar registrations (<b>{femalePercentage}%</b>).</>
-                ) : (
-                  <>Registrations are evenly split between male and female students (<b>50% / 50%</b>).</>
-                )
-              ) : (
-                <>No demographic registration data recorded yet.</>
-              )}
-            </span>
-          </div>
-        </div>
-
-      </div>
-
-      {/* Seminars List & Manage Link */}
-      <div className="admin-panel" style={{ marginTop: 24 }}>
-        <div className="panel-head">
-          <div>
-            <span className="eyebrow">ALL EVENTS</span>
-            <h2>Seminars Overview</h2>
-          </div>
-          <Link className="text-link" to="/admin/seminars">Manage all seminars &rarr;</Link>
-        </div>
-        <div className="admin-table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Seminar</th>
-                <th>Date</th>
-                <th>Venue</th>
-                <th>Registrations</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.slice(0, 6).map((item) => (
-                <tr key={item.id}>
-                  <td>
-                    <b>{item.title}</b>
-                    <small>{item.category}</small>
-                  </td>
-                  <td>{item.date}</td>
-                  <td>{item.venue}</td>
-                  <td>{item.reserved || item.registered || 0} / {item.capacity}</td>
-                  <td>
-                    <span className="pill">{item.status || 'Published'}</span>
-                  </td>
-                </tr>
-              ))}
-              {!items.length && (
-                <tr>
-                  <td colSpan={5} style={{ textAlign: 'center', padding: '24px 0', color: '#6b7280' }}>
-                    No seminars yet. Create the first JUSA event.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+          <article className="db-card">
+            <header className="db-card-head"><div><h2>Audience</h2><p>Who is registering</p></div></header>
+            {semesters.length || male || female ? (
+              <div className="db-audience">
+                <div className="db-gender">
+                  <div><small>Male</small><b>{male}</b><span>{percent(male, male + female)}%</span></div>
+                  <div><small>Female</small><b>{female}</b><span>{percent(female, male + female)}%</span></div>
+                </div>
+                {semesters.length > 0 && <ul className="db-semesters">
+                  {semesters.map((item) => <li key={item.semester}><span>{semesterLabel(item.semester)}</span><b>{item.count} applicant{item.count === 1 ? '' : 's'} ({item.percentage}%)</b></li>)}
+                </ul>}
+              </div>
+            ) : <div className="db-empty compact"><Users aria-hidden="true" /><span>Demographics appear after the first registrations.</span></div>}
+          </article>
         </div>
       </div>
     </section>
   );
 }
-

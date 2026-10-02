@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import { Crown, Pencil, ShieldAlert, ShieldCheck, Trash2, UserCheck, UserPlus, Users, X } from 'lucide-react';
 import { adminUserService } from '../services/admin-user.service';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import type { User, UserRole } from '../types/user.types';
 
 export default function AdminUsers() {
   const { user: currentUser } = useAuth();
+  const { show, confirm } = useToast();
   const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
 
   const [users, setUsers] = useState<User[]>([]);
@@ -43,9 +45,9 @@ export default function AdminUsers() {
       const result = await adminUserService.create({ fullName, email, password, role: role as 'STAFF' | 'ADMIN' | 'SUPER_ADMIN' });
       setUsers((current) => [result.data, ...current]);
       setFullName(''); setEmail(''); setPassword(''); setRole('STAFF');
-      setMessage('Account created successfully.');
+      show('Account created successfully.', 'success');
     } catch (issue) {
-      setMessage(issue instanceof Error ? issue.message : 'Unable to create account.');
+      show(issue instanceof Error ? issue.message : 'Unable to create account.', 'error');
     } finally {
       setSaving(false);
     }
@@ -68,9 +70,9 @@ export default function AdminUsers() {
       const result = await adminUserService.update(editTarget.id, { fullName: editName, role: editRole });
       setUsers((current) => current.map((u) => u.id === editTarget.id ? result.data : u));
       setEditTarget(null);
-      setMessage('Account updated successfully.');
+      show('Account updated successfully.', 'success');
     } catch (issue) {
-      setMessage(issue instanceof Error ? issue.message : 'Unable to update account.');
+      show(issue instanceof Error ? issue.message : 'Unable to update account.', 'error');
     } finally {
       setEditSaving(false);
     }
@@ -78,20 +80,20 @@ export default function AdminUsers() {
 
   // ── Delete ───────────────────────────────────────────────────────────────
   const remove = async (targetUser: User) => {
-    if (targetUser.id === currentUser?.id) { alert('You cannot delete your own account.'); return; }
+    if (targetUser.id === currentUser?.id) { show('You cannot delete your own account.', 'warning'); return; }
     if ((targetUser.role === 'SUPER_ADMIN' || targetUser.role === 'ADMIN') && !isSuperAdmin) {
-      alert('Only the Super Administrator can delete Admin accounts.');
+      show('Only the Super Administrator can delete Admin accounts.', 'warning');
       return;
     }
-    if (!window.confirm(`Delete ${targetUser.fullName} (${targetUser.email})? This cannot be undone.`)) return;
+    if (!(await confirm({ title: 'Delete this account?', message: `${targetUser.fullName} (${targetUser.email}) will be removed permanently. This cannot be undone.`, confirmLabel: 'Delete account' }))) return;
     setDeletingId(targetUser.id);
     setMessage('');
     try {
       await adminUserService.remove(targetUser.id);
       setUsers((current) => current.filter((item) => item.id !== targetUser.id));
-      setMessage('Account deleted.');
+      show('Account deleted.', 'success');
     } catch (issue) {
-      setMessage(issue instanceof Error ? issue.message : 'Unable to delete account.');
+      show(issue instanceof Error ? issue.message : 'Unable to delete account.', 'error');
     } finally {
       setDeletingId('');
     }
@@ -304,7 +306,7 @@ export default function AdminUsers() {
       {/* Edit Modal */}
       {editTarget && (
         <div
-          style={{ position: 'fixed', inset: 0, background: 'rgb(16 40 33 / .64)', backdropFilter: 'blur(4px)', zIndex: 50, display: 'grid', placeItems: 'center', padding: 24 }}
+          style={{ position: 'fixed', inset: 0, background: 'rgb(21 26 70 / .64)', backdropFilter: 'blur(4px)', zIndex: 50, display: 'grid', placeItems: 'center', padding: 24 }}
           onMouseDown={() => setEditTarget(null)}
         >
           <form

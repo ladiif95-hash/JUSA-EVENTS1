@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { downloadExport, exportParticipants } from '../utils/exportParticipants';
 import { Award, BarChart2, BarChart3, Calendar, CheckCircle2, Download, PieChart, Trophy, Users, Vote } from 'lucide-react';
 import { seminarService } from '../services/seminar.service';
 import { voteService, type VotePoll } from '../services/vote.service';
@@ -16,7 +17,7 @@ type SeminarReport = {
 };
 
 const CHART_PALETTE = [
-  '#0a8f55', '#2563eb', '#7c3aed', '#ea580c', '#db2777', '#0891b2', '#ca8a04', '#4f46e5',
+  '#00A451', '#2563eb', '#7c3aed', '#ea580c', '#db2777', '#0891b2', '#ca8a04', '#4f46e5',
 ];
 
 export default function AdminReports() {
@@ -34,8 +35,6 @@ export default function AdminReports() {
   const [loadingVotes, setLoadingVotes] = useState(true);
 
   const [error, setError] = useState('');
-
-  const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
   // Load seminars
   useEffect(() => {
@@ -87,7 +86,7 @@ export default function AdminReports() {
   const seminarMetrics = seminarReport
     ? [
         ['Registered', seminarReport.registered, '#2563eb'],
-        ['Attended', seminarReport.attended, '#087346'],
+        ['Attended', seminarReport.attended, '#2D368D'],
         ['Absent', seminarReport.absent, '#dc2626'],
         ['Waitlisted', seminarReport.waitlisted, '#d97706'],
       ]
@@ -120,7 +119,7 @@ export default function AdminReports() {
             fontWeight: 700,
             fontSize: 15,
             cursor: 'pointer',
-            backgroundColor: activeTab === 'votes' ? '#087346' : '#f3f4f6',
+            backgroundColor: activeTab === 'votes' ? '#2D368D' : '#f3f4f6',
             color: activeTab === 'votes' ? '#ffffff' : '#4b5563',
             transition: 'all 0.2s',
           }}
@@ -141,7 +140,7 @@ export default function AdminReports() {
             fontWeight: 700,
             fontSize: 15,
             cursor: 'pointer',
-            backgroundColor: activeTab === 'seminars' ? '#087346' : '#f3f4f6',
+            backgroundColor: activeTab === 'seminars' ? '#2D368D' : '#f3f4f6',
             color: activeTab === 'seminars' ? '#ffffff' : '#4b5563',
             transition: 'all 0.2s',
           }}
@@ -169,12 +168,13 @@ export default function AdminReports() {
             </select>
 
             {selectedPoll && (
-              <a
+              <button
+                type="button"
                 className="button button-outline"
-                href={`${apiBase}/admin/votes/${selectedPoll.id}/export`}
+                onClick={() => downloadExport(`/admin/votes/${selectedPoll.id}/export`, 'jusa-vote-report.xlsx').catch((issue) => setError(issue instanceof Error ? issue.message : 'Unable to export.'))}
               >
                 <Download style={{ width: 16 }} /> Export Vote Excel
-              </a>
+              </button>
             )}
           </div>
 
@@ -219,7 +219,7 @@ export default function AdminReports() {
                   <b>{selectedPoll.options.length}</b>
                 </article>
                 <article style={{ minWidth: 0 }}>
-                  <CheckCircle2 style={{ color: selectedPoll.status === 'OPEN' ? '#087346' : '#6b7280' }} />
+                  <CheckCircle2 style={{ color: selectedPoll.status === 'OPEN' ? '#2D368D' : '#6b7280' }} />
                   <span>Poll Status</span>
                   <b>{selectedPoll.status === 'OPEN' ? '🟢 Active' : '🔒 Closed'}</b>
                 </article>
@@ -422,12 +422,13 @@ export default function AdminReports() {
             </select>
 
             {seminarId && (
-              <a
+              <button
+                type="button"
                 className="button button-outline"
-                href={`${apiBase}/admin/seminars/${seminarId}/export`}
+                onClick={() => exportParticipants(seminarId).catch((issue) => setError(issue instanceof Error ? issue.message : 'Unable to export.'))}
               >
                 <Download style={{ width: 16 }} /> Export Seminar Excel
-              </a>
+              </button>
             )}
           </div>
 

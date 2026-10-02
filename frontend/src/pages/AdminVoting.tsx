@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
+import { downloadExport } from '../utils/exportParticipants';
 import { BarChart2, CheckCircle2, Download, Plus, Trash2, Trophy, Vote } from 'lucide-react';
 import { voteService, type VotePoll } from '../services/vote.service';
 import { ErrorState, LoadingState } from '../components/StateViews';
+import { useToast } from '../context/ToastContext';
 
 const blankOption = () => ({ title: '' });
 
-const CHART_COLORS = ['#0a8f55', '#2563eb', '#7c3aed', '#d97706', '#dc2626', '#0891b2', '#059669'];
+const CHART_COLORS = ['#00A451', '#2563eb', '#7c3aed', '#d97706', '#dc2626', '#0891b2', '#059669'];
 
 export default function AdminVoting() {
+  const { show, confirm } = useToast();
   const [polls, setPolls] = useState<VotePoll[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -56,11 +59,11 @@ export default function AdminVoting() {
         options: validOptions,
       });
       setOptions([blankOption(), blankOption()]);
-      setSuccess('New vote created and published successfully!');
+      show('New vote created and published.', 'success');
       setSelectedPollId(response.data.id);
       load();
     } catch (issue) {
-      setError(issue instanceof Error ? issue.message : 'Unable to create this vote.');
+      show(issue instanceof Error ? issue.message : 'Unable to create this vote.', 'error');
     } finally {
       setBusy(false);
     }
@@ -71,30 +74,33 @@ export default function AdminVoting() {
     setError('');
     try {
       await voteService.update(id, { status: 'CLOSED' });
+      show('Voting closed.', 'success');
       load();
     } catch (issue) {
-      setError(issue instanceof Error ? issue.message : 'Unable to close this vote.');
+      show(issue instanceof Error ? issue.message : 'Unable to close this vote.', 'error');
     } finally {
       setBusy(false);
     }
   };
 
   const removePoll = async (id: string, pollTitle: string) => {
-    if (!window.confirm(`Are you sure you want to delete "${pollTitle}"? All vote data for this poll will be removed.`)) {
+    if (!(await confirm({ title: 'Delete this vote?', message: `"${pollTitle}" and all of its votes will be removed permanently.`, confirmLabel: 'Delete vote' }))) {
       return;
     }
     setBusy(true);
     try {
       await voteService.remove(id);
+      show('Vote deleted.', 'success');
       load();
     } catch (issue) {
-      setError(issue instanceof Error ? issue.message : 'Unable to delete vote.');
+      show(issue instanceof Error ? issue.message : 'Unable to delete vote.', 'error');
     } finally {
       setBusy(false);
     }
   };
 
-  const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+  const exportPoll = (pollId: string) => downloadExport(`/admin/votes/${pollId}/export`, 'jusa-vote-report.xlsx')
+    .catch((issue) => show(issue instanceof Error ? issue.message : 'Unable to export.', 'error'));
 
   return (
     <section className="admin-page">
@@ -119,19 +125,20 @@ export default function AdminVoting() {
               <h2>{current.title}</h2>
               <p>
                 <b>{current.totalVotes}</b> total vote{current.totalVotes === 1 ? '' : 's'} ·{' '}
-                <span style={{ color: current.status === 'OPEN' ? '#087346' : '#6b7280', fontWeight: 600 }}>
+                <span style={{ color: current.status === 'OPEN' ? '#2D368D' : '#6b7280', fontWeight: 600 }}>
                   {current.status === 'OPEN' ? 'Open for voting' : 'Voting closed'}
                 </span>
               </p>
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <a
+              <button
+                type="button"
                 className="button button-outline"
-                href={`${apiBase}/admin/votes/${current.id}/export`}
+                onClick={() => exportPoll(current.id)}
                 title="Export Excel Report"
               >
                 <Download style={{ width: 16 }} /> Export
-              </a>
+              </button>
               {current.status === 'OPEN' && (
                 <button className="button button-outline" disabled={busy} onClick={() => closePoll(current.id)}>
                   Close voting
@@ -330,14 +337,16 @@ export default function AdminVoting() {
                         >
                           View Results
                         </button>
-                        <a
+                        <button
+                          type="button"
                           className="button button-outline"
                           style={{ padding: '4px 10px', fontSize: 12, height: 32 }}
-                          href={`${apiBase}/admin/votes/${poll.id}/export`}
+                          onClick={() => exportPoll(poll.id)}
                           title="Export Excel"
+                          aria-label="Export Excel"
                         >
                           <Download style={{ width: 14 }} />
-                        </a>
+                        </button>
                         <button
                           type="button"
                           className="user-delete-button"

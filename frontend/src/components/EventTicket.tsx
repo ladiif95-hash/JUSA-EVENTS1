@@ -14,8 +14,8 @@ export default function EventTicket({ ticket, onClose }: { ticket: EventTicketDa
     <article className="event-ticket">
       <header className="event-ticket-head">
         <div className="event-ticket-brand">
-          <img src="/images/jusa-logo.png" alt="JUSA logo" />
-          <span><b>JUSA</b> Events</span>
+          <img src="/images/jutsa-logo.svg" alt="JUTSA logo" />
+          <span><b>JUTSA</b> Events</span>
           <em className="going-pill"><i /> Going</em>
         </div>
         {onClose && <button className="event-ticket-close" type="button" onClick={onClose} aria-label="Close"><X /></button>}
@@ -36,7 +36,7 @@ export default function EventTicket({ ticket, onClose }: { ticket: EventTicketDa
           <span className="qr-corner br" />
           {ticket.dataUrl
             ? <img src={ticket.dataUrl} alt="Event QR ticket" />
-            : <div className="qr-placeholder"><span>JUSA</span><span>EVENT PASS</span></div>}
+            : <div className="qr-placeholder"><span>JUTSA</span><span>EVENT PASS</span></div>}
         </div>
         <p>Your seat is reserved. Show this ticket at the entrance.</p>
       </div>

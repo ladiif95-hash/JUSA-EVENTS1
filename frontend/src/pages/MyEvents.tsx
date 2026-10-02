@@ -5,7 +5,9 @@ import EventTicket, { type EventTicketData } from '../components/EventTicket';
 import Modal from '../components/Modal';
 import { EmptyState, ErrorState, LoadingState } from '../components/StateViews';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { seminarService } from '../services/seminar.service';
+import { assetUrl, formatCampusDate, formatCampusTime } from '../utils/campus';
 
 type EventRegistration = {
   id?: string;
@@ -31,13 +33,13 @@ const titleCase = (value: string) =>
   value.replace('_', ' ').toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase());
 
 const formatDate = (value?: string) =>
-  value ? new Date(value).toLocaleDateString('en-GB', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : 'Date to be confirmed';
+  value ? formatCampusDate(value, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : 'Date to be confirmed';
 
-const formatTime = (value?: string) =>
-  value ? new Date(value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'Time to be confirmed';
+const formatTime = (value?: string) => (value ? formatCampusTime(value) : 'Time to be confirmed');
 
 export default function MyEvents() {
   const { user } = useAuth();
+  const { show } = useToast();
   const [items, setItems] = useState<EventRegistration[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -64,32 +66,34 @@ export default function MyEvents() {
     load();
   }, [load]);
 
+  // An event is past once it has ended (or started, when no end time is known).
+  const isPast = (item: EventRegistration) => { const end = item.seminarId?.endDateTime || item.seminarId?.startDateTime; return end ? new Date(end).getTime() < Date.now() : false; };
   const filtered = items.filter((item) =>
     tab === 'cancelled'
       ? item.status === 'CANCELLED'
       : tab === 'past'
-      ? item.attendanceStatus === 'CHECKED_IN'
-      : item.status !== 'CANCELLED' && item.attendanceStatus !== 'CHECKED_IN'
+      ? item.status !== 'CANCELLED' && isPast(item)
+      : item.status !== 'CANCELLED' && !isPast(item)
   );
 
   const viewTicketModal = async (registration: EventRegistration) => {
     const regId = registration.id || registration._id || '';
     if (!regId) return;
+    if (registration.status === 'WAITLISTED') { show('You are on the waitlist. Your ticket appears here as soon as a seat opens.', 'warning'); return; }
     setLoadingTicketId(regId);
     try {
       const qrRes = await seminarService.qr(regId);
       const sem = registration.seminarId;
       setTicketData({
-        title: sem?.title || 'JUSA Seminar',
+        title: sem?.title || 'JUTSA Seminar',
         date: formatDate(sem?.startDateTime),
         time: formatTime(sem?.startDateTime),
         venue: sem?.venue || 'JUST Main Campus',
-        attendee: user?.fullName || qrRes.registration?.userId?.fullName || 'JUSA Student',
+        attendee: user?.fullName || qrRes.registration?.userId?.fullName || 'JUTSA Student',
         dataUrl: qrRes.dataUrl,
       });
-    } catch {
-      // Fallback: direct to full page pass
-      window.location.assign(`/qr-pass/${regId}`);
+    } catch (issue) {
+      show(issue instanceof Error ? issue.message : 'Your ticket is not available right now.', 'error');
     } finally {
       setLoadingTicketId(null);
     }
@@ -102,12 +106,11 @@ export default function MyEvents() {
     setError('');
     try {
       await seminarService.cancel(targetId);
-      setSuccessMsg(`Booskaagii seminaarka "${cancelTarget.seminarId?.title || ''}" si guul leh ayaad isaga celisay.`);
+      show(`Your reservation for "${cancelTarget.seminarId?.title || 'the seminar'}" was cancelled.`, 'success');
       setCancelTarget(null);
       load();
-      setTimeout(() => setSuccessMsg(''), 6000);
     } catch (issue) {
-      setError(issue instanceof Error ? issue.message : 'Unable to cancel this reservation.');
+      show(issue instanceof Error ? issue.message : 'Unable to cancel this reservation.', 'error');
       setCancelTarget(null);
     } finally {
       setBusy(false);
@@ -186,12 +189,11 @@ export default function MyEvents() {
               >
                 <img
                   src={
-                    seminar?.coverImage ||
-                    seminar?.image ||
-                    'https://images.unsplash.com/photo-1522202176988-66273c2fd55?auto=format&fit=crop&w=800&q=80'
+                    assetUrl(seminar?.coverImage || seminar?.image) ||
+                    'https://www.just.edu.so/assets/images/slider3.jpg'
                   }
                   alt=""
-                  style={{ width: '100%', height: 110, objectFit: 'cover', borderRadius: 10 }}
+                  style={{ width: '100%', height: 130, objectFit: 'contain', borderRadius: 10, background: '#EEF0F6' }}
                 />
 
                 <div style={{ minWidth: 0 }}>
@@ -213,18 +215,18 @@ export default function MyEvents() {
                   </div>
 
                   <h2 style={{ fontSize: 19, margin: '0 0 6px', color: '#111827', fontWeight: 700 }}>
-                    {seminar?.title || 'JUSA Seminar Event'}
+                    {seminar?.title || 'JUTSA Seminar Event'}
                   </h2>
 
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, color: '#4b5563', fontSize: 13 }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <CalendarDays style={{ width: 15, color: '#087346' }} /> {formatDate(seminar?.startDateTime)}
+                      <CalendarDays style={{ width: 15, color: '#2D368D' }} /> {formatDate(seminar?.startDateTime)}
                     </span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <Clock3 style={{ width: 15, color: '#087346' }} /> {formatTime(seminar?.startDateTime)}
+                      <Clock3 style={{ width: 15, color: '#2D368D' }} /> {formatTime(seminar?.startDateTime)}
                     </span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <MapPin style={{ width: 15, color: '#087346' }} /> {seminar?.venue || 'JUST Campus'}
+                      <MapPin style={{ width: 15, color: '#2D368D' }} /> {seminar?.venue || 'JUST Campus'}
                     </span>
                   </div>
                 </div>
@@ -277,7 +279,7 @@ export default function MyEvents() {
       ) : (
         <EmptyState
           title={`No ${tab} events`}
-          message={tab === 'upcoming' ? 'Browse upcoming JUSA seminars and reserve a seat.' : 'Your event history will appear here.'}
+          message={tab === 'upcoming' ? 'Browse upcoming JUTSA seminars and reserve a seat.' : 'Your event history will appear here.'}
           action={tab === 'upcoming' ? { to: '/seminars', label: 'Explore seminars' } : undefined}
         />
       )}

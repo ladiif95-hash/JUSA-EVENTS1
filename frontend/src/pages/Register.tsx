@@ -1,112 +1,95 @@
 import { useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Brand } from '../components/Navbar';
-import { AuthArt } from './Login';
+import AlertDialog, { type AlertTone } from '../components/AlertDialog';
+import { AuthShell, GoogleButton, PasswordInput } from '../components/AuthShell';
+import PhotoUpload from '../components/PhotoUpload';
 import { useAuth } from '../context/AuthContext';
+import { usePreferences } from '../context/PreferencesContext';
+import { friendlyAuthError, useAuthText } from '../i18n/auth';
+import { API_URL } from '../services/api';
+
+const countries = [
+  { code: '252', name: 'Somalia' },
+  { code: '254', name: 'Kenya' },
+  { code: '251', name: 'Ethiopia' },
+  { code: '253', name: 'Djibouti' },
+  { code: '256', name: 'Uganda' },
+  { code: '90', name: 'Türkiye' },
+] as const;
 
 export default function Register() {
-  const [form, setForm] = useState({ fullName: '', email: '', phone: '', password: '', confirm: '' });
-  const [error, setError] = useState('');
+  const { language } = usePreferences();
+  const t = useAuthText(language);
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', country: '252', phone: '', password: '', confirm: '', photo: '', terms: false });
+  const [alert, setAlert] = useState<{ tone: AlertTone; message: string; signIn?: boolean } | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
   const locationState = location.state as { from?: string } | null;
-  const from = locationState?.from;
   const { register, isLoading } = useAuth();
+  const update = (patch: Partial<typeof form>) => setForm((current) => ({ ...current, ...patch }));
+  const ready = Boolean(form.firstName.trim() && form.lastName.trim() && form.email.trim() && form.phone.trim() && form.password && form.confirm && form.terms);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    setError('');
-    if (form.password !== form.confirm) return setError('Passwords do not match');
+    if (!form.firstName.trim() || !form.lastName.trim()) return setAlert({ tone: 'warning', message: t.nameRequired });
+    if (!/^\S+@\S+\.\S+$/.test(form.email.trim())) return setAlert({ tone: 'warning', message: t.invalidEmail });
+    if (form.password.length < 8) return setAlert({ tone: 'warning', message: t.passwordShort });
+    if (form.password !== form.confirm) return setAlert({ tone: 'warning', message: t.mismatch });
+    const fullName = `${form.firstName.trim()} ${form.lastName.trim()}`;
+    const phone = `+${form.country} ${form.phone.trim().replace(/^0+/, '')}`;
     try {
-      await register(form.fullName, form.email, form.password, form.phone);
-      // If user came from a specific action (like /vote), take them back there directly!
-      navigate(from || '/complete-profile', { replace: true, state: locationState });
+      await register(fullName, form.email.trim(), form.password, phone, form.photo || undefined);
+      navigate(locationState?.from || '/complete-profile', { replace: true, state: locationState });
     } catch (issue) {
-      const message = issue instanceof Error ? issue.message : 'Unable to create account';
-      setError(message === 'Email already registered' ? 'An account already exists with this email. Please sign in instead.' : message);
+      const message = friendlyAuthError(issue instanceof Error ? issue.message : '', t);
+      setAlert({ tone: 'error', message, signIn: message === t.emailTaken });
     }
   };
 
+  const required = (text: string) => `${text} *`;
+
   return (
-    <section className="auth-page grid min-h-dvh min-[761px]:grid-cols-2">
-      <form className="auth-panel mx-auto w-[min(440px,calc(100%-32px))]" onSubmit={submit}>
-        <Brand />
-        <span className="eyebrow">STUDENT PORTAL</span>
-        <h1>Create your account</h1>
-        <p>Start discovering and voting for JUSA events today.</p>
-        <button
-          type="button"
-          className="google-button"
-          onClick={() => window.location.assign(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/google`)}
-        >
-          G <span>Continue with Google</span>
+    <AuthShell
+      variant="compact"
+      title={t.registerHeading}
+      subtitle={t.registerLead}
+      footer={<span>{t.haveAccount} <Link to="/login" state={location.state}>{t.signIn}</Link></span>}
+    >
+      <form className="auth-form compact-form" onSubmit={submit} noValidate>
+        <PhotoUpload value={form.photo} onChange={(photo) => update({ photo })} label={t.uploadPhoto} hint={t.photoHint} changeLabel={t.changePhoto} removeLabel={t.removePhoto} />
+        <div className="auth-row keep">
+          <input aria-label={t.firstName} value={form.firstName} onChange={(event) => update({ firstName: event.target.value })} autoComplete="given-name" placeholder={required(t.firstName)} required />
+          <input aria-label={t.lastName} value={form.lastName} onChange={(event) => update({ lastName: event.target.value })} autoComplete="family-name" placeholder={required(t.lastName)} required />
+        </div>
+        <input aria-label={t.email} value={form.email} onChange={(event) => update({ email: event.target.value })} type="email" autoComplete="email" placeholder={required(t.email)} required />
+        <div className="auth-row phone-row">
+          <select aria-label={t.country} value={form.country} onChange={(event) => update({ country: event.target.value })} autoComplete="tel-country-code">
+            {countries.map((country) => <option key={country.code} value={country.code}>{country.name} (+{country.code})</option>)}
+          </select>
+          <span className="phone-input"><em>+{form.country}</em><input aria-label={t.phone} value={form.phone} onChange={(event) => update({ phone: event.target.value })} type="tel" autoComplete="tel-national" inputMode="tel" placeholder={required(t.phone)} required /></span>
+        </div>
+        <PasswordInput value={form.password} onChange={(password) => update({ password })} placeholder={required(t.password)} autoComplete="new-password" showLabel={t.show} hideLabel={t.hide} />
+        <PasswordInput value={form.confirm} onChange={(confirm) => update({ confirm })} placeholder={required(t.confirmPassword)} autoComplete="new-password" showLabel={t.show} hideLabel={t.hide} />
+        <label className="auth-terms">
+          <input type="checkbox" checked={form.terms} onChange={(event) => update({ terms: event.target.checked })} required />
+          <span><b>{t.terms}<i aria-hidden="true">*</i></b><small>{t.termsNote} <Link to="/about">{t.termsLink}</Link></small></span>
+        </label>
+        <button className="button auth-submit" disabled={isLoading || !ready}>
+          {isLoading ? t.signingUp : <>{t.signUp} <ArrowRight aria-hidden="true" /></>}
         </button>
-        <div className="or">OR</div>
-        <label>
-          Full name
-          <input
-            value={form.fullName}
-            onChange={(e) => setForm({ ...form, fullName: e.target.value })}
-            required
-            placeholder="Your full name"
-          />
-        </label>
-        <label>
-          Email address
-          <input
-            value={form.email}
-            onChange={(e) => setForm({ ...form, email: e.target.value })}
-            required
-            type="email"
-            placeholder="you@example.com"
-          />
-        </label>
-        <label>
-          Phone number
-          <input
-            value={form.phone}
-            onChange={(e) => setForm({ ...form, phone: e.target.value })}
-            required
-            type="tel"
-            placeholder="+252 61 0000000"
-          />
-        </label>
-        <label>
-          Password
-          <input
-            value={form.password}
-            onChange={(e) => setForm({ ...form, password: e.target.value })}
-            required
-            minLength={8}
-            type="password"
-            placeholder="At least 8 characters"
-          />
-        </label>
-        <label>
-          Confirm password
-          <input
-            value={form.confirm}
-            onChange={(e) => setForm({ ...form, confirm: e.target.value })}
-            required
-            type="password"
-            placeholder="••••••••"
-          />
-        </label>
-        {error && (
-          <p className="form-error" role="alert">
-            {error} {error.startsWith('An account') && <Link to="/login" state={location.state}>Sign in</Link>}
-          </p>
-        )}
-        <button className="button auth-button" disabled={isLoading}>
-          {isLoading ? 'Creating account…' : <>Create account <ArrowRight /></>}
-        </button>
-        <p className="auth-switch">
-          Already have an account? <Link to="/login" state={location.state}>Sign in</Link>
-        </p>
+        <div className="or">{t.or}</div>
+        <GoogleButton label={t.google} href={`${API_URL}/auth/google`} />
       </form>
-      <AuthArt />
-    </section>
+      {alert && (
+        <AlertDialog
+          tone={alert.tone}
+          title={alert.tone === 'error' ? t.failed : t.warning}
+          message={alert.message}
+          action={alert.signIn ? t.signIn : t.okay}
+          onClose={() => { const goSignIn = alert.signIn; setAlert(null); if (goSignIn) navigate('/login', { state: location.state }); }}
+        />
+      )}
+    </AuthShell>
   );
 }
-

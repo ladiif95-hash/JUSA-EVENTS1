@@ -2,15 +2,7 @@ import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowRight, SkipForward } from 'lucide-react';
 import { authService } from '../services/auth.service';
-
-const facultyDepartments: Record<string, string[]> = {
-  'Faculty of Computer & Information Technology': ['Computer Science', 'Information Technology', 'Software Engineering'],
-  'Faculty of Engineering': ['Civil Engineering', 'Electrical Engineering'],
-  'Faculty of Medicine & Health Sciences': ['Medicine', 'Public Health'],
-  'Faculty of Economics & Management': ['Business Administration', 'Accounting'],
-  'Faculty of Veterinary & Agricultural Sciences': ['Veterinary Medicine', 'Agriculture'],
-  'Faculty of Education': ['Education', 'Languages'],
-};
+import { facultyDepartments } from '../data/faculties';
 
 export default function CompleteProfile() {
   const [form, setForm] = useState({ phone: '', faculty: '', department: '', semester: '', gender: '' });

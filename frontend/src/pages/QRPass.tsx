@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import EventTicket from '../components/EventTicket';
 import { seminarService } from '../services/seminar.service';
+import { formatCampusDate, formatCampusTime } from '../utils/campus';
 
 type PassData = {
   dataUrl: string;
@@ -14,12 +15,11 @@ type PassData = {
 
 function formatDate(value?: string) {
   if (!value) return 'To be confirmed';
-  return new Date(value).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+  return formatCampusDate(value, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 function formatTime(start?: string) {
-  if (!start) return 'TBC';
-  return new Date(start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  return start ? formatCampusTime(start) : 'TBC';
 }
 
 export default function QRPass() {
@@ -49,11 +49,11 @@ export default function QRPass() {
     <section className="page container ticket-page">
       <EventTicket
         ticket={{
-          title: seminar?.title || 'JUSA Event',
+          title: seminar?.title || 'JUTSA Event',
           date: formatDate(seminar?.startDateTime),
           time: formatTime(seminar?.startDateTime),
           venue: seminar?.venue || 'JUST campus',
-          attendee: pass.registration.userId?.fullName || 'JUSA Student',
+          attendee: pass.registration.userId?.fullName || 'JUTSA Student',
           dataUrl: pass.dataUrl,
         }}
       />

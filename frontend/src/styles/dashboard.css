@@ -1,0 +1,150 @@
+/* ==========================================================================
+   Admin dashboard — white-dominant, navy primary, green for success.
+   ========================================================================== */
+.db { max-width: 1640px; }
+.db-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.db-date { color: var(--just-green-text); font-size: 12px; font-weight: 600; letter-spacing: .3px; }
+.db-head h1 { margin: 4px 0 4px !important; font-size: clamp(24px, 2.6vw, 30px) !important; }
+.db-head p { margin: 0; color: var(--just-muted); font-size: 14px; }
+.db-head-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.db-head-actions .button-outline { margin: 0; }
+
+.db-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-top: 22px; }
+.db-kpi { padding: 18px 20px; background: #fff; border: 1px solid var(--just-line); border-radius: 16px; box-shadow: var(--just-shadow); }
+.db-kpi-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.db-kpi-top span { color: var(--just-muted); font-size: 13px; font-weight: 500; }
+.db-kpi-top i { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 11px; background: var(--just-navy-tint); color: var(--just-navy); }
+.db-kpi-top i svg { width: 19px; height: 19px; }
+.db-kpi b { display: block; margin: 10px 0 4px; font-size: 32px; font-weight: 700; line-height: 1; color: var(--just-ink); }
+.db-kpi small { display: flex; align-items: center; gap: 6px; color: var(--just-muted); font-size: 12px; }
+.db-kpi small::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--just-green); }
+
+.db-grid { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(300px, 1fr); gap: 18px; margin-top: 18px; align-items: start; }
+.db-grid > * { min-width: 0; }
+.db-stack { display: grid; gap: 18px; }
+.db-card { padding: 20px; background: #fff; border: 1px solid var(--just-line); border-radius: 16px; box-shadow: var(--just-shadow); }
+.db-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.db-card-head h2 { margin: 0; font-size: 16px; font-weight: 700; }
+.db-card-head p { margin: 3px 0 0; color: var(--just-muted); font-size: 12.5px; }
+.db-card-head .text-link { font-size: 13px; white-space: nowrap; }
+
+/* Capacity + per-seminar bars */
+.db-capacity { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 18px; padding: 14px 16px; border-radius: 12px; background: #F7F8FC; }
+.db-capacity strong { display: block; color: var(--just-navy); font-size: 28px; line-height: 1; }
+.db-capacity span { display: block; margin-top: 4px; color: var(--just-muted); font-size: 12px; }
+.db-capacity-bar { height: 14px; border-radius: 99px; background: #E6E9F2; overflow: hidden; }
+.db-capacity-bar i { display: block; height: 100%; min-width: 14px; border-radius: inherit; background: linear-gradient(90deg, var(--just-navy), #4F5BC4); transition: width .6s ease; }
+.db-legend { display: flex; flex-wrap: wrap; gap: 16px; margin: 16px 0 6px; padding: 0; list-style: none; color: var(--just-muted); font-size: 12px; }
+.db-legend li { display: flex; align-items: center; gap: 6px; }
+.db-legend li::before { content: ''; width: 10px; height: 10px; border-radius: 3px; }
+.db-legend .in::before { background: var(--just-green); }
+.db-legend .reg::before { background: var(--just-navy); }
+.db-legend .free::before { background: #E6E9F2; }
+.db-bars { display: grid; gap: 14px; margin: 10px 0 0; padding: 0; list-style: none; }
+.db-bar-label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 6px; font-size: 13px; }
+.db-bar-label a { min-width: 0; overflow: hidden; color: var(--just-ink); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.db-bar-label a:hover { color: var(--just-navy); }
+.db-bar-label span { flex: none; color: var(--just-muted); font-weight: 600; }
+.db-bar { display: flex; height: 12px; border-radius: 99px; background: #E6E9F2; overflow: hidden; }
+.db-bar i { height: 100%; transition: width .6s ease; }
+.db-bar i.in { background: var(--just-green); }
+.db-bar i.reg { background: var(--just-navy); }
+
+/* Quick actions */
+.db-actions { display: grid; gap: 6px; }
+.db-actions a { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 12px; color: var(--just-ink); transition: background .15s; }
+.db-actions a:hover { background: #F5F6FC; }
+.db-actions a i { display: grid; place-items: center; width: 40px; height: 40px; flex: none; border-radius: 11px; background: var(--just-navy-tint); color: var(--just-navy); }
+.db-actions a i svg { width: 19px; height: 19px; }
+.db-actions a span { display: grid; min-width: 0; }
+.db-actions a b { font-size: 14px; font-weight: 600; }
+.db-actions a small { color: var(--just-muted); font-size: 12px; }
+.db-chevron { width: 18px; margin-left: auto; flex: none; color: #98A2B3; transition: transform .15s; }
+.db-actions a:hover .db-chevron { transform: translateX(3px); color: var(--just-navy); }
+
+/* Upcoming seminars */
+.db-upcoming { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.db-upcoming li { display: grid; grid-template-columns: auto minmax(0, 1fr) 120px auto; align-items: center; gap: 14px; padding: 12px 6px; border-top: 1px solid #ECEEF4; }
+.db-upcoming li:first-child { border-top: 0; }
+.db-date-block { display: grid; place-items: center; width: 52px; height: 56px; border-radius: 12px; background: var(--just-navy-tint); color: var(--just-navy); line-height: 1; }
+.db-date-block b { font-size: 20px; }
+.db-date-block small { margin-top: 3px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+.db-upcoming-main { display: grid; gap: 4px; min-width: 0; }
+.db-upcoming-main a { overflow: hidden; color: var(--just-ink); font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.db-upcoming-main a:hover { color: var(--just-navy); }
+.db-upcoming-main span { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; color: var(--just-muted); font-size: 12px; }
+.db-upcoming-main svg { width: 13px; }
+.db-upcoming-main svg + svg, .db-upcoming-main span svg:nth-of-type(2) { margin-left: 6px; }
+.db-upcoming-seats span { display: block; margin-bottom: 5px; font-size: 12px; font-weight: 600; }
+.db-upcoming-seats i { display: block; height: 6px; border-radius: 99px; background: #E6E9F2; overflow: hidden; }
+.db-upcoming-seats u { display: block; height: 100%; border-radius: inherit; background: var(--just-green); text-decoration: none; }
+
+/* Recent registrations + audience */
+.db-recent { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.db-recent li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid #ECEEF4; }
+.db-recent li:first-child { border-top: 0; padding-top: 0; }
+.db-avatar { display: grid; place-items: center; width: 38px; height: 38px; overflow: hidden; border-radius: 50%; background: var(--just-navy); color: #fff; font-size: 13px; font-weight: 700; }
+.db-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.db-recent b { display: block; overflow: hidden; font-size: 13.5px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.db-recent small { display: block; overflow: hidden; color: var(--just-muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.status-pill.warn { background: #FFF3DD; color: #B86E00; }
+.db-audience { display: grid; gap: 14px; }
+.db-gender { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.db-gender > div { padding: 12px 14px; border: 1px solid var(--just-line); border-radius: 12px; }
+.db-gender small { display: block; color: var(--just-muted); font-size: 12px; }
+.db-gender b { margin-right: 6px; font-size: 22px; }
+.db-gender span { color: var(--just-green-text); font-size: 12px; font-weight: 600; }
+.db-semesters { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.db-semesters li { display: flex; justify-content: space-between; gap: 10px; padding: 9px 12px; border-radius: 10px; background: #F7F8FC; font-size: 13px; }
+.db-semesters li:first-child { background: var(--just-green-tint); }
+.db-semesters b { font-weight: 600; white-space: nowrap; }
+
+/* Empty states */
+.db-empty { display: grid; justify-items: center; gap: 6px; padding: 28px 16px; border: 1px dashed #D0D5DD; border-radius: 12px; text-align: center; color: var(--just-muted); font-size: 13px; }
+.db-empty svg { width: 30px; height: 30px; color: var(--just-navy); opacity: .8; }
+.db-empty b { color: var(--just-ink); font-size: 14px; }
+.db-empty .button { margin-top: 8px; }
+.db-empty.compact { padding: 18px 14px; }
+
+/* Sidebar: slimmer, roomier profile card */
+@media (min-width: 761px) { .admin-layout { grid-template-columns: 248px minmax(0, 1fr) !important; } }
+.admin-sidebar-bottom { padding: 16px !important; }
+.admin-user { gap: 12px !important; align-items: flex-start !important; }
+.admin-user > span { width: 40px !important; height: 40px !important; }
+.admin-user b { display: -webkit-box !important; overflow: hidden; font-size: 13.5px !important; line-height: 1.35; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.admin-user small { margin-top: 3px !important; }
+.admin-sidebar-bottom > button { min-height: 42px !important; margin-top: 14px !important; }
+.admin-theme-row { margin-bottom: 10px !important; }
+
+/* Responsive */
+@media (max-width: 1180px) { .db-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 1100px) { .db-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 760px) {
+  .db-head-actions { width: 100%; }
+  .db-head-actions .button { flex: 1; }
+  .db-kpis { gap: 12px; margin-top: 18px; }
+  .db-kpi { padding: 14px; }
+  .db-kpi b { font-size: 26px; }
+  .db-card { padding: 16px; }
+  .db-capacity { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .db-upcoming li { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .db-upcoming-seats { grid-column: 2 / -1; grid-row: 2; }
+}
+@media (max-width: 340px) { .db-kpis { grid-template-columns: minmax(0, 1fr); } }
+
+/* Dark mode */
+html[data-theme="dark"] :is(.db-kpi, .db-card) { background: var(--d-surface); border-color: var(--d-line); }
+html[data-theme="dark"] :is(.db-kpi-top i, .db-actions a i, .db-date-block) { background: #252D6B; color: #C9CEFF; }
+html[data-theme="dark"] :is(.db-capacity, .db-semesters li) { background: var(--d-surface-2); }
+html[data-theme="dark"] .db-semesters li:first-child { background: rgb(0 164 81 / .16); }
+html[data-theme="dark"] .db-capacity strong { color: #C9CEFF; }
+html[data-theme="dark"] :is(.db-capacity-bar, .db-bar, .db-upcoming-seats i) { background: #262D63; }
+html[data-theme="dark"] .db-bar i.reg, html[data-theme="dark"] .db-legend .reg::before { background: #6C78E6; }
+html[data-theme="dark"] .db-capacity-bar i { background: linear-gradient(90deg, #4651C9, #6C78E6); }
+html[data-theme="dark"] .db-legend .free::before { background: #262D63; }
+html[data-theme="dark"] .db-actions a:hover { background: var(--d-surface-2); }
+html[data-theme="dark"] :is(.db-upcoming li, .db-recent li) { border-color: var(--d-line); }
+html[data-theme="dark"] :is(.db-bar-label a, .db-upcoming-main a, .db-actions a) { color: var(--d-text); }
+html[data-theme="dark"] .db-gender > div, html[data-theme="dark"] .db-empty { border-color: var(--d-line); }
+html[data-theme="dark"] .db-empty svg { color: #C9CEFF; }
+html[data-theme="dark"] .status-pill.warn { background: rgb(245 165 36 / .16); color: #FFC266; }

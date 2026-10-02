@@ -1,25 +1,24 @@
 import { api } from './api';
 import type { Seminar } from '../types/seminar.types';
 import type { Registration } from '../types/registration.types';
-
-function formatClock(value: Date) {
-  return value.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-}
+import { assetUrl, formatCampusDate, formatCampusTime } from '../utils/campus';
 
 export function mapSeminar(raw: Seminar & { _id?: string; coverImage?: string; registered?: number; myRegistration?: { id?: string; _id?: string; status: string } | null }): Seminar {
-  const start = raw.startDateTime ? new Date(raw.startDateTime) : null;
-  const end = raw.endDateTime ? new Date(raw.endDateTime) : null;
+  const start = raw.startDateTime || null;
+  const end = raw.endDateTime || null;
   const reserved = raw.reserved ?? raw.registered ?? 0;
   const mine = raw.myRegistration;
   return {
     ...raw,
     id: raw.id || raw._id || '',
-    image: raw.image || raw.coverImage || '',
+    image: assetUrl(raw.image || raw.coverImage),
+    coverImage: assetUrl(raw.coverImage),
+    speakerPhoto: assetUrl(raw.speakerPhoto),
     reserved,
     remainingSeats: raw.remainingSeats ?? Math.max(0, raw.capacity - reserved),
-    date: start ? start.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : raw.date,
-    time: start ? (end ? `${formatClock(start)} – ${formatClock(end)}` : formatClock(start)) : raw.time,
-    speaker: raw.speaker || 'JUSA',
+    date: start ? formatCampusDate(start) : raw.date,
+    time: start ? (end ? `${formatCampusTime(start)} – ${formatCampusTime(end)}` : formatCampusTime(start)) : raw.time,
+    speaker: raw.speaker || 'JUTSA',
     speakerPosition: raw.speakerPosition || 'Guest speaker',
     myRegistration: mine ? { id: mine.id || mine._id || '', status: mine.status } : null,
   };
@@ -35,6 +34,9 @@ export type DashboardData = {
   totalApplicants: number;
   semesterStats: { semester: string; count: number; percentage: number }[];
   genderStats: { gender: string; rawGender?: string; count: number; percentage: number }[];
+  // Present once the backend is rebuilt; the dashboard falls back gracefully without them.
+  seminarStats?: { id: string; title: string; slug: string; venue: string; capacity: number; status: string; startDateTime: string; endDateTime: string; registered: number; waitlisted: number; checkedIn: number }[];
+  recentRegistrations?: { id: string; status: string; registeredAt: string; fullName: string; profilePhoto?: string | null; seminarTitle: string; seminarSlug: string }[];
 };
 
 export const seminarService = {

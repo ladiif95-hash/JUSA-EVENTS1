@@ -1,15 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { AlertTriangle, Camera, CheckCircle2, Mail, Phone, ShieldCheck, UserRound, X } from 'lucide-react';
+import { AlertTriangle, BadgeCheck, Camera, CheckCircle2, Clock3, KeyRound, Loader2, QrCode, RotateCcw, ShieldCheck, X, XCircle } from 'lucide-react';
 import { api } from '../services/api';
+import { formatCampusTime } from '../utils/campus';
 
 type ScanResult = {
   alreadyCheckedIn?: boolean;
   attendance: { status: string; checkedInAt?: string };
-  student: { fullName: string; email: string; phone?: string; faculty?: string; department?: string; semester?: string; gender?: string };
+  student: { fullName: string; email: string; phone?: string; faculty?: string; department?: string; semester?: string; gender?: string; profilePhoto?: string };
   seminar: { title: string; venue?: string };
   registration: { reference?: string; status?: string };
 };
+
+const genderLabel = (value?: string) => (value === 'MALE' ? 'Male' : value === 'FEMALE' ? 'Female' : value === 'OTHER' ? 'Other' : '—');
+const initials = (name: string) => name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase();
 
 export default function AdminCheckIn() {
   const [qrToken, setQrToken] = useState('');
@@ -18,18 +22,23 @@ export default function AdminCheckIn() {
   const [busy, setBusy] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
   const scanner = useRef<Html5Qrcode | null>(null);
+  const cameraWanted = useRef(false);
+  const busyRef = useRef(false);
 
   const stopCamera = async () => {
+    cameraWanted.current = false;
     const active = scanner.current;
     scanner.current = null;
     setCameraOpen(false);
     if (active?.isScanning) await active.stop().catch(() => undefined);
-    active?.clear();
+    try { active?.clear(); } catch { /* already cleared */ }
   };
 
   const verifyTicket = async (rawValue: string) => {
     const value = rawValue.trim();
-    if (!value || busy) return;
+    // A ref, not state: the camera callback keeps the closure from when scanning started.
+    if (!value || busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     setError('');
     setResult(null);
@@ -40,12 +49,15 @@ export default function AdminCheckIn() {
     } catch (issue) {
       setError(issue instanceof Error ? issue.message : 'This QR pass could not be verified.');
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   };
 
   const startCamera = async () => {
     setError('');
+    setResult(null);
+    cameraWanted.current = true;
     setCameraOpen(true);
     window.setTimeout(async () => {
       try {
@@ -53,15 +65,17 @@ export default function AdminCheckIn() {
         scanner.current = reader;
         await reader.start(
           { facingMode: 'environment' },
-          { fps: 10, qrbox: { width: 240, height: 240 } },
+          { fps: 10, qrbox: { width: 230, height: 230 } },
           async (decodedText) => {
             await stopCamera();
-            setQrToken(decodedText);
             void verifyTicket(decodedText);
           },
           () => undefined,
         );
+        // Stop was pressed (or the page left) while the camera was still starting.
+        if (!cameraWanted.current) { await reader.stop().catch(() => undefined); try { reader.clear(); } catch { /* noop */ } }
       } catch {
+        cameraWanted.current = false;
         setCameraOpen(false);
         setError('Unable to open the camera. Allow camera access, or paste the QR token instead.');
       }
@@ -70,37 +84,101 @@ export default function AdminCheckIn() {
 
   useEffect(() => () => { void stopCamera(); }, []);
 
-  return <section className="admin-page">
-    <span className="eyebrow">EVENT ATTENDANCE</span>
-    <h1>Check in attendee</h1>
-    <p className="admin-lead">Scan the student QR pass or paste its code. A valid ticket records attendance and shows the registration profile.</p>
+  const reset = () => { setResult(null); setError(''); setQrToken(''); };
+  const checkedInAt = formatCampusTime(result?.attendance?.checkedInAt);
 
-    <div className="scan-layout">
-      <div className="admin-panel scan-panel">
-        {cameraOpen ? <div className="qr-scanner-wrap"><div id="jusa-qr-reader" className="qr-scanner" /><button type="button" className="scan-camera-stop" onClick={() => void stopCamera()}><X/>Stop camera</button></div> : <button type="button" className="button scan-camera-button" onClick={() => void startCamera()}><Camera/>Scan with camera</button>}
-        <div className="scan-divider"><span>or enter code manually</span></div>
-        <form className="scan-manual" onSubmit={(event) => { event.preventDefault(); void verifyTicket(qrToken); }}>
-          <label>QR token<input autoFocus value={qrToken} onChange={(event) => setQrToken(event.target.value)} placeholder="Paste QR token…" /></label>
-          <button className="button" disabled={busy}>{busy ? 'Checking…' : 'Verify ticket'}</button>
-        </form>
+  return (
+    <section className="admin-page">
+      <div className="admin-title">
+        <div>
+          <span className="eyebrow">EVENT ATTENDANCE</span>
+          <h1>Check in attendee</h1>
+          <p className="admin-lead">Scan the student QR pass or paste its code. A valid ticket records attendance and shows the registration profile.</p>
+        </div>
       </div>
 
-      <div className="scan-result-col">
-        {error && <div className="status-bar status-bar-fail" role="alert"><AlertTriangle /><div><b>Check-in failed</b><span>{error}</span></div></div>}
-        {result && <>
-          <div className={result.alreadyCheckedIn ? 'status-bar status-bar-warn' : 'status-bar status-bar-ok'}>
-            {result.alreadyCheckedIn ? <AlertTriangle /> : <CheckCircle2 />}<div><b>{result.alreadyCheckedIn ? 'Already checked in' : 'Check-in successful'}</b><span>{result.alreadyCheckedIn ? 'This student was already marked present.' : 'Attendance has been recorded.'}</span></div>
-          </div>
-          <article className="student-card">
-            <div className="student-card-head"><div className="student-avatar"><UserRound /></div><div><small>REGISTERED STUDENT</small><h2>{result.student.fullName}</h2><p>{result.seminar.title}</p></div><span className="pill">{result.alreadyCheckedIn ? 'PRESENT' : 'CHECKED IN'}</span></div>
-            <div className="student-grid">
-              <p><Mail /><span><b>Email</b>{result.student.email || '—'}</span></p><p><Phone /><span><b>Phone</b>{result.student.phone || '—'}</span></p><p><ShieldCheck /><span><b>Faculty</b>{result.student.faculty || '—'}</span></p><p><UserRound /><span><b>Department</b>{result.student.department || '—'}</span></p><p><span><b>Class / semester</b>{result.student.semester || '—'}</span></p><p><span><b>Gender</b>{result.student.gender || '—'}</span></p>
+      <div className="checkin-layout">
+        <article className="checkin-card">
+          <header className="checkin-card-head">
+            <span className="checkin-badge"><QrCode aria-hidden="true" /></span>
+            <div><span className="eyebrow">CHECK-IN</span><h2>Scan a pass</h2></div>
+          </header>
+
+          {cameraOpen ? (
+            <div className="qr-scanner-wrap">
+              <div id="jusa-qr-reader" className="qr-scanner" />
+              <p className="qr-scanner-hint">Point the camera at the student’s QR pass</p>
+              <button type="button" className="scan-camera-stop" onClick={() => void stopCamera()}><X aria-hidden="true" />Stop camera</button>
             </div>
-            {result.registration.reference && <p className="student-ref">Reference {result.registration.reference}</p>}
-          </article>
-        </>}
-        {!error && !result && <article className="student-card student-card-empty"><ShieldCheck /><h2>Waiting for a ticket</h2><p>After scanning, the attendee name, phone, faculty, department, class and gender will appear here.</p></article>}
+          ) : (
+            <button type="button" className="button scan-primary" onClick={() => void startCamera()} disabled={busy}>
+              <Camera aria-hidden="true" /><span>Scan with camera</span>
+            </button>
+          )}
+
+          <div className="scan-divider"><span>or enter code manually</span></div>
+
+          <form className="scan-manual" onSubmit={(event) => { event.preventDefault(); void verifyTicket(qrToken); }}>
+            <label>
+              QR token
+              <span className="token-input"><KeyRound aria-hidden="true" /><input value={qrToken} onChange={(event) => setQrToken(event.target.value)} placeholder="Paste QR token…" autoComplete="off" spellCheck={false} /></span>
+            </label>
+            <button className="button button-outline scan-verify" disabled={busy || !qrToken.trim()}>{busy ? 'Checking…' : 'Verify ticket'}</button>
+          </form>
+        </article>
+
+        <article className={`ticket-card ${result ? (result.alreadyCheckedIn ? 'is-warn' : 'is-ok') : error ? 'is-error' : busy ? 'is-busy' : 'is-empty'}`} aria-live="polite">
+          {busy ? (
+            <div className="ticket-state">
+              <span className="ticket-state-icon busy"><Loader2 aria-hidden="true" /></span>
+              <h2>Verifying ticket…</h2>
+              <p>Checking the pass against the registration list.</p>
+            </div>
+          ) : error ? (
+            <div className="ticket-state">
+              <span className="ticket-state-icon error"><XCircle aria-hidden="true" /></span>
+              <h2>Invalid ticket</h2>
+              <p>{error}</p>
+              <button type="button" className="button ticket-retry" onClick={reset}><RotateCcw aria-hidden="true" />Try again</button>
+            </div>
+          ) : result ? (
+            <div className="ticket-verified">
+              <div className={`ticket-banner ${result.alreadyCheckedIn ? 'warn' : 'ok'}`}>
+                {result.alreadyCheckedIn ? <AlertTriangle aria-hidden="true" /> : <BadgeCheck aria-hidden="true" />}
+                <b>{result.alreadyCheckedIn ? 'Already checked in' : 'Ticket verified'}</b>
+              </div>
+              <div className="ticket-person">
+                {result.student.profilePhoto ? <img src={result.student.profilePhoto} alt="" /> : <span className="ticket-initials">{initials(result.student.fullName)}</span>}
+                <h2>{result.student.fullName}</h2>
+                {result.registration.reference && <p className="ticket-id">Ticket ID: <b>{result.registration.reference}</b></p>}
+                <p className="ticket-seminar">{result.seminar.title}{result.seminar.venue ? ` · ${result.seminar.venue}` : ''}</p>
+              </div>
+              <dl className="ticket-details">
+                <div><dt>Faculty</dt><dd>{result.student.faculty || '—'}</dd></div>
+                <div><dt>Department</dt><dd>{result.student.department || '—'}</dd></div>
+                <div><dt>Class</dt><dd>{result.student.semester ? `Semester ${result.student.semester}` : '—'}</dd></div>
+                <div><dt>Gender</dt><dd>{genderLabel(result.student.gender)}</dd></div>
+                <div><dt>Phone</dt><dd>{result.student.phone || '—'}</dd></div>
+                <div><dt>Email</dt><dd>{result.student.email || '—'}</dd></div>
+              </dl>
+              <div className="ticket-footer">
+                <span className={`checked-badge ${result.alreadyCheckedIn ? 'warn' : ''}`}>
+                  {result.alreadyCheckedIn ? <Clock3 aria-hidden="true" /> : <CheckCircle2 aria-hidden="true" />}
+                  {result.alreadyCheckedIn ? `Present since ${checkedInAt || 'earlier'}` : `Checked in${checkedInAt ? ` · ${checkedInAt}` : ''}`}
+                </span>
+                <button type="button" className="text-link" onClick={() => void startCamera()}>Scan next <Camera aria-hidden="true" /></button>
+              </div>
+            </div>
+          ) : (
+            <div className="ticket-state">
+              <span className="ticket-state-icon waiting"><ShieldCheck aria-hidden="true" /></span>
+              <h2>Waiting for a ticket</h2>
+              <p>Scan a student QR pass to display their registration information here.</p>
+              <button type="button" className="ticket-hint" onClick={() => void startCamera()}><QrCode aria-hidden="true" />Scan QR to continue</button>
+            </div>
+          )}
+        </article>
       </div>
-    </div>
-  </section>;
+    </section>
+  );
 }

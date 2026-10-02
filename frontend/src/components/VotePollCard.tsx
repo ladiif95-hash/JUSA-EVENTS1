@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Trophy } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { voteService, type VotePoll } from '../services/vote.service';
 
 export default function VotePollCard({ compact = false }: { compact?: boolean }) {
   const { user } = useAuth();
+  const { show } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
   const [poll, setPoll] = useState<VotePoll | null>(null);
@@ -22,7 +24,8 @@ export default function VotePollCard({ compact = false }: { compact?: boolean })
 
   useEffect(() => {
     load();
-    const timer = window.setInterval(load, 4000);
+    // Refresh live counts without draining the API rate limit; skip while the tab is hidden.
+    const timer = window.setInterval(() => { if (!document.hidden) load(); }, 15000);
     return () => window.clearInterval(timer);
   }, []);
 
@@ -38,6 +41,7 @@ export default function VotePollCard({ compact = false }: { compact?: boolean })
     try {
       const response = await voteService.cast(poll.id, selected);
       setPoll(response.data);
+      show('Thank you! Your vote has been recorded.', 'success');
     } catch (issue) {
       setError(issue instanceof Error ? issue.message : 'Unable to save your vote.');
       load();
@@ -65,8 +69,8 @@ export default function VotePollCard({ compact = false }: { compact?: boolean })
               {option.image ? <img src={option.image} alt="" /> : null}
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                  <b style={{ fontSize: 16, color: '#17202a' }}>{option.title}</b>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: checked ? '#087346' : '#52606d' }}>
+                  <b style={{ fontSize: 16, color: '#171717' }}>{option.title}</b>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: checked ? '#2D368D' : '#52606d' }}>
                     {option.votes} vote{option.votes === 1 ? '' : 's'} ({percent}%)
                   </span>
                 </div>
@@ -80,7 +84,7 @@ export default function VotePollCard({ compact = false }: { compact?: boolean })
       </div>
       <div className="vote-actions">
         <span>{poll.totalVotes} total vote{poll.totalVotes === 1 ? '' : 's'}</span>
-        {locked ? <small>{poll.myVoteOptionId ? 'Your vote is in. Counts update live.' : 'Voting is closed.'}</small> : <button className="button" disabled={busy || !selected} onClick={submit}>{user ? (busy ? 'Saving…' : 'Submit vote') : 'Sign in to vote'}</button>}
+        {locked ? <small>{poll.myVoteOptionId ? 'Your vote is in. Counts update live.' : 'Voting is closed.'}</small> : <button className="button" disabled={busy || (Boolean(user) && !selected)} onClick={submit}>{user ? (busy ? 'Saving…' : 'Submit vote') : 'Sign in to vote'}</button>}
         {error && <b className="vote-error">{error}</b>}
         {compact && <Link className="text-link" to="/vote">Open full vote</Link>}
       </div>
